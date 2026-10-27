@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {normalizeTable} from '../../frontend/src/features/table/data_table_model.mjs';
-import {readTableView} from '../../frontend/src/features/table/table_exchange.mjs';
+import {isTableSource,readTableView} from '../../frontend/src/application/table_exchange.mjs';
 import {createBusinessDocument} from '../../frontend/src/application/business_document.ts';
 import {scheduleTableInstall} from '../../frontend/src/features/table/table_node_install.mjs';
 import {createMaterialTable} from '../../frontend/src/features/table/table_material_columns.mjs';
@@ -131,7 +131,7 @@ test('real install and coalesced lifecycle bind after attachment, normalize/save
   if(nativeGetter)nativeStringWidget(h);
   h.node.properties={};h.node.inputs.pop();h.node.addInput=(name,type)=>h.node.inputs.push({name,type,link:null});h.node.__dataTablePanel={render(){renders++;}};
   const environment={widget:(node,name)=>node.widgets?.find(w=>w.name===name),isGeneric:node=>node.type==='DAELAB.Table',dataName:node=>node.type==='DAELAB.Table'?'table_data':'storyboard_data',app:{canvas:{}},
-   normalizeTable,createMaterialTable,preserveGenerationHistory,assertTransition,enableColumnPrompt,syncGenerationConfigOwners,ensureIdentity,NAMESPACE,
+   normalizeTable,createMaterialTable,preserveGenerationHistory,assertTransition,enableColumnPrompt,syncGenerationConfigOwners,ensureIdentity,NAMESPACE,isTableSource,
    promptField,promptFingerprint,isColumnPrompt,effectivePrompt,writeGenerationResults,clone:structuredClone,
    readTableView:node=>{calls++;return readTableView(node);},createTableWidgetSerializer:helper.createTableWidgetSerializer,notify:message=>{throw Error(message);}};
   for(const name of ['linkedReport','setWidget','hideNative','save'])environment[name]=owningFunction(name,environment);
@@ -144,6 +144,15 @@ test('real install and coalesced lifecycle bind after attachment, normalize/save
   assert.equal(h.data.serializeValue(),h.data.value);assert.equal(h.data.serializeValue(),h.data.value);assert.equal(calls,1,'installed serializer must actually hit after normalize/save');
   const old=h.data.serializeValue;scheduleTableInstall(proxy,scheduled);await Promise.resolve();assert.notEqual(h.data.serializeValue,old);
   h.data.serializeValue();h.data.serializeValue();assert.equal(calls,2,'configure reinstalls a fresh proof');
+  const saved=h.data.value,slot=h.node.inputs.findIndex(input=>input.name==='source_table');
+  h.nodes.set('text',{id:'text',type:'DAELAB.TextInput'});h.graph.links[0]={origin_id:'text',origin_slot:0};h.node.inputs[slot].link=0;
+  h.node.disconnectInput=index=>{delete h.graph.links[h.node.inputs[index].link];h.node.inputs[index].link=null;};
+  assert.throws(()=>readTableView(h.node),/多维表格不可用/);
+  scheduleTableInstall(proxy,scheduled);await Promise.resolve();
+  assert.equal(h.node.inputs[slot].link,null);assert.equal(h.data.value,saved,'restoring an invalid input preserves table data');
+  const upstream=fixture(canonical(small()),'upstream');h.nodes.set('upstream',upstream.node);h.graph.links[1]={origin_id:'upstream',origin_slot:0};h.node.inputs[slot].link=1;
+  scheduleTableInstall(proxy,scheduled);await Promise.resolve();
+  assert.equal(h.node.inputs[slot].link,1,'valid table sources remain connected');
  }
 });
 

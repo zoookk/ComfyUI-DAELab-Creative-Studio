@@ -149,17 +149,18 @@ for (const event of ['dae-canvas-hide', 'litegraph:set-graph', 'subgraph-opening
   });
 }
 
-test('actual owning beforeLoadGraph callback releases through synchronous hide before model loading', async () => {
+test('workflow loader releases through synchronous hide before native loading', async () => {
   const d = setup(); assert(await d.start());
   const source = fs.readFileSync(new URL('../../frontend/src/integrations/comfyui/canvas/creative_canvas.js', import.meta.url), 'utf8');
-  const match = /beforeLoadGraph\(\)\{([^}]+)\}/.exec(source); assert(match);
+  const match = /function installWorkflowView\(\)\{([\s\S]*?)\n\}/.exec(source); assert(match);
   const viewSource = fs.readFileSync(new URL('../../frontend/src/canvas/creative_canvas_view.mjs', import.meta.url), 'utf8');
   const hideBody = /function hide\(save=true\)\{(.+)\}\r?\n/.exec(viewSource); assert(hideBody);
   const hide = new Function('root', 'document', 'host', 'clear', 'closePicker', 'dirty', `let state={active:true}, visible=true; return function hide(save=true){${hideBody[1]}}`)(
     d.root, d.document, {redrawNative() {assert.equal(d.canvas.pause_rendering, false);}}, () => {assert.equal(d.canvas.pause_rendering, false);}, () => {}, () => {});
-  const callback = new Function('view', 'restoreLabels', `let modeRevision=0; return function(){${match[1]}}`)(
-    {hide}, () => {});
-  callback(); assert.equal(d.canvas.pause_rendering, false); await nextTurn();
+  const app = {async loadGraphData() {assert.equal(d.canvas.pause_rendering, false);}};
+  const install = new Function('app', 'view', 'restoreLabels', 'STATE_KEY', `let modeRevision=0; return function(){${match[1]}}`)(
+    app, {hide}, () => {}, 'daelabCreativeCanvasV1');
+  install(); await app.loadGraphData(); assert.equal(d.canvas.pause_rendering, false); await nextTurn();
 });
 
 test('canvas replacement restores the original and never mutates the replacement', async () => {

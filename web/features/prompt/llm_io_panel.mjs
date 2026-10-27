@@ -42,7 +42,7 @@ export function bindIOPanel({node,nativeDocument=null,root,source,instruction,se
     const recover=createTableButton('恢复原结果',()=>void recoverProposal());
     const regenerate=createTableButton('',()=>run.click());tableIcon(regenerate,'restart-line','重新生成');
     for(const b of [apply,undo,regenerate])b.classList.add('llm-style-result-action');actions.append(apply,undo,regenerate,recover);
-    const sourceSection=source.closest('.llm-style-source');source.readOnly=true;source.placeholder='通过 Slot 连接文字输入';
+    const sourceSection=source.closest('.llm-style-source');source.placeholder='输入原始文字，或连接文本节点';
     const imageSection=make('section','llm-style-section llm-style-image-source'),imageBox=make('div','llm-style-image-upload'),image=make('img','llm-style-image-preview'),imageText=make('span','llm-style-image-text','通过 Slot 连接参考图片');
     imageSection.append(make('span','llm-style-label','参考图片'),imageBox);imageBox.append(image,imageText);sourceSection.after(imageSection);materialHint.parentElement.hidden=true;
     select.replaceChildren(new Option('Qwen3.5-9B · 本地','qwen'),new Option('DeepSeek · API','deepseek'));
@@ -76,22 +76,24 @@ export function bindIOPanel({node,nativeDocument=null,root,source,instruction,se
         for(const b of root.querySelectorAll('[data-mode]')){const selected=b.dataset.mode===saved().mode;setAttribute(b,'aria-pressed',String(selected));toggleAttribute(b,'data-primary',selected);}
         const mode=saved().mode||'polish',reverse=mode==='reverse',disabled=busy||!!node.mode;
         setProperty(sourceSection,'hidden',reverse);setProperty(imageSection,'hidden',!reverse);
-        setProperty(source,'value',rows.map(r=>r.text).filter(Boolean).join('\n\n'));
+        const linked=node.inputs?.some(input=>input.link!=null)||false;
+        setProperty(source,'readOnly',linked);
+        setProperty(source,'value',linked?rows.map(r=>r.text).filter(Boolean).join('\n\n'):saved().source||'');
         const first=rows.find(r=>r.image)?.image;setProperty(image,'hidden',!first);if(first&&image.getAttribute('src')!==first.url)image.src=first.url;setProperty(image,'alt',first?.name||'参考图片');setProperty(imageText,'hidden',!!first);toggleClass(imageBox,'has-image',!!first);
         for(const control of [source,instruction,select])setProperty(control,'disabled',disabled);
         setProperty(instruction,'readOnly',saved().slotInstruction!==undefined);
         for(const b of root.querySelectorAll('[data-mode]'))setProperty(b,'disabled',disabled);
         const valid=availableModes(rows)[mode];
-        setProperty(run,'disabled',disabled||!!error||!valid);setProperty(run,'title','通过 Slot 读取输入，串行生成建议；应用后输出');setProperty(run.lastChild,'textContent',busy?'生成中…':'生成');setAttribute(run,'aria-busy',String(busy));
+        setProperty(run,'disabled',disabled||!!error||!valid);setProperty(run,'title','使用原始文字或连线输入生成建议；应用后输出');setProperty(run.lastChild,'textContent',busy?'生成中…':'生成');setAttribute(run,'aria-busy',String(busy));
         const d=proposalState||saved().ioResult,stamp=signature(),stale=d?.signature!==stamp,isApplied=!!d?.requestId&&saved().appliedIO?.requestId===d.requestId;
         setProperty(paragraph,'textContent',d?.rows.map(r=>r.result).filter(Boolean).join('\n\n')||'');
         setProperty(apply,'disabled',disabled||!d?.complete||stale||isApplied||!!nativeDocument&&(proposalTicket?!nativeDocument.canApply(proposalTicket):restoredProposal!==d?.requestId));setProperty(apply,'hidden',isApplied);
         setProperty(recover,'disabled',disabled||!nativeDocument);setProperty(undo,'disabled',disabled||!saved().ioUndo);setProperty(undo,'hidden',!saved().ioUndo);setProperty(regenerate,'disabled',run.disabled||!d);
-        setProperty(status,'textContent',error||(d&&stale?'输入已改变，请重新生成':message|| (d?`${d.provider==='qwen'?'本地 Qwen 结果':d.provider==='deepseek'?'DeepSeek 结果':'示例结果 · 未调用模型'}${isApplied?' · 已应用':' · 待应用'}`:rows.length&&!valid?'当前连线输入不支持此模式':rows.length?`${rows.length} 项输入 · 等待生成`:'请通过 Slot 连接输入')));
+        setProperty(status,'textContent',error||(d&&stale?'输入已改变，请重新生成':message|| (d?`${d.provider==='qwen'?'本地 Qwen 结果':d.provider==='deepseek'?'DeepSeek 结果':'示例结果 · 未调用模型'}${isApplied?' · 已应用':' · 待应用'}`:rows.length&&!valid?'当前输入不支持此模式':rows.length?`${rows.length} 项输入 · 等待生成`:'请输入原始文字或连接输入')));
         task=[...generationTask.snapshot(),...(!busy&&error?[{id:'llm-input',label:waiting?'等待输入':'输入异常',state:waiting?'queued':'error',detail:error}]:[])];
         try{node.setOutputData?.(0,outputText(node));}catch{node.setOutputData?.(0,null);}
     }
-    on(select,'change',()=>{message='';changed();});on(instruction,'input',()=>{message='';changed();});
+    on(select,'change',()=>{message='';changed();});for(const field of [source,instruction])on(field,'input',()=>{message='';changed();});
     for(const b of root.querySelectorAll('[data-mode]'))on(b,'click',()=>{message='';changed();});
     on(run,'click',async()=>{
         if(run.disabled||node.mode)return;

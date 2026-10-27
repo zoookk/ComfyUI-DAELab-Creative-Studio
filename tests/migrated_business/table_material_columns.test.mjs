@@ -17,9 +17,9 @@ for(const kind of ['image','video'])test(`single ${kind} fills every existing ro
  const ids=t.records.map(r=>r.values.a[0].id);fillMaterialColumn(t,'a',source);assert.deepEqual(t.records.map(r=>r.values.a[0].id),ids);
  assert.deepEqual(normalizeTable(JSON.stringify(t)),t);assert.deepEqual(h.restore(JSON.stringify(t)),before);
 });
-test('single text broadcasts unchanged newlines to content, plain text and prompt columns',()=>{
+test('single text broadcasts unchanged newlines to plain text and prompt columns',()=>{
  const text='同一个镜头\n保留第二行';
- for(const field of [{type:'content'},{type:'text'},{type:'longtext'},{type:'json',presentation:'prompt'}]){
+ for(const field of [{type:'text'},{type:'longtext'},{type:'json',presentation:'prompt'}]){
   const t=mediaTable();Object.assign(t.fields[0],field);fillMaterialColumn(t,'a',{version:1,texts:[text]});
   for(const r of t.records)assert.equal(field.presentation==='prompt'?r.values.a.segments[0].text:r.values.a,text);
   assert.deepEqual(normalizeTable(JSON.stringify(t)),t);
@@ -28,15 +28,28 @@ test('single text broadcasts unchanged newlines to content, plain text and promp
 test('column fill handles empty tables, preview counts and invalid text without partial writes',()=>{
  const t=mediaTable();t.records=[];fillMaterialColumn(t,'a',group(1));assert.equal(t.records.length,1);
  assert.equal(columnFillCount(0,3),0);assert.equal(columnFillCount(2,3),2);
- for(const field of [{type:'assets'},{type:'number'},{type:'content',readonly:true},{type:'content',hidden:true}]){
+ for(const field of [{type:'content'},{type:'assets'},{type:'number'},{type:'content',readonly:true},{type:'content',hidden:true}]){
   const table=mediaTable();Object.assign(table.fields[0],field);const before=clone(table);
   assert(!columnDropTypes(table.fields[0]).includes('text'));assert.throws(()=>fillMaterialColumn(table,'a',{texts:['hello']}));assert.deepEqual(table,before);
  }
  const before=clone(t);for(const source of [{texts:['ok',null]},{texts:['ok'],ready:false},{texts:['ok'],assets:group(1).assets}]){assert.throws(()=>fillMaterialColumn(t,'a',source));assert.deepEqual(t,before);}
 });
-test('new tables have independent image, text and generation columns',()=>{
- const a=createMaterialTable(),b=createMaterialTable();assert.deepEqual(a.fields.map(f=>f.name),['图片/视频','提示词','生成']);assert.equal(a.records.length,3);assert.equal(a.records.some(r=>r.selected),false);assert.equal(a.fields[1].width,420);
- assert.equal(a.fields[1].presentation,'prompt');assert.equal(a.fields[1].type,'json');assert.equal(a.fields[2].generation.promptFieldId,a.fields[1].id);assert.equal(a.fields[2].readonly,true);assert.equal(a.records[0].values[a.fields[1].id],'');
+test('media cannot fill text or prompt columns and rejected inputs preserve the table',()=>{
+ for(const field of [{type:'text'},{type:'longtext'},{type:'json',presentation:'prompt'},{type:'content',presentation:'prompt'}]){
+  const table=mediaTable();Object.assign(table.fields[0],field);const before=clone(table);
+  assert.deepEqual(columnDropTypes(table.fields[0]),['text']);
+  for(const kind of ['image','video']){
+   const source={assets:[{filename:kind==='image'?'a.png':'a.webm',kind}]};
+   assert.throws(()=>fillMaterialColumn(table,'a',source),/此列不能接收素材/);
+   assert.throws(()=>fillMaterialCell(table,'r1','a',source),/此单元格不能接收素材/);
+   assert.deepEqual(table,before);
+  }
+ }
+ for(const type of ['content','assets'])assert.deepEqual(columnDropTypes({type}),['image','video']);
+});
+test('new tables have independent image and prompt columns without a generation column',()=>{
+ const a=createMaterialTable(),b=createMaterialTable();assert.deepEqual(a.fields.map(f=>f.name),['图片/视频','提示词']);assert.equal(a.records.length,3);assert.equal(a.records.some(r=>r.selected),false);assert.equal(a.fields[1].width,420);
+ assert.equal(a.fields[1].presentation,'prompt');assert.equal(a.fields[1].type,'json');assert.equal(a.meta.generationInput.promptFieldId,a.fields[1].id);assert.equal(a.fields.some(f=>f.presentation==='generation'),false);assert.equal(a.records[0].values[a.fields[1].id],'');
  fillMaterialColumn(a,a.fields[0].id,group(3));assert.equal(b.records.length,3);assert.equal(b.records[0].values[b.fields[0].id].length,0);
  setValue(a,a.records[0].id,a.fields[0].id,[{url:'/view?a'},{url:'/view?b'}]);assert.equal(a.records[0].values[a.fields[0].id].length,2);
 });

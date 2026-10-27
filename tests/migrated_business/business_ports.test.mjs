@@ -52,11 +52,11 @@ test('product HTTP assembly reaches only implemented routes and preserves missin
  await assert.rejects(businessFetch('/daelab/script-parser/ai-status'),/script/);
 });
 
-test('current default equals the old native workflow after normalizing only generated IDs',()=>{
+test('new default retains old editable columns and rows without the automatic generation column',()=>{
  const workflow=JSON.parse(readFileSync(new URL('../fixtures/workflows/old-default-table.json',import.meta.url),'utf8'));
  const old=JSON.parse(workflow.nodes.find(n=>n.type==='DAELAB.Table').widgets_values[0]),current=createMaterialTable();
  const shape=t=>({fields:t.fields.map(f=>({name:f.name,type:f.type,width:f.width,presentation:f.presentation,readonly:f.readonly,generation:f.generation?{...f.generation,promptFieldId:t.fields.findIndex(v=>v.id===f.generation.promptFieldId)}:undefined})),records:t.records.map(r=>({name:r.name,selected:r.selected,values:t.fields.map(f=>r.values[f.id])}))});
- assert.deepEqual(shape(current),shape(old));assert.deepEqual(current.fields.map(f=>f.name),['图片/视频','提示词','生成']);assert.deepEqual(current.records.map(r=>r.name),['任务1','任务2','任务3']);
+ assert.deepEqual(shape(current),shape({...old,fields:old.fields.filter(f=>f.presentation!=='generation')}));assert.deepEqual(current.fields.map(f=>f.name),['图片/视频','提示词']);assert.deepEqual(current.records.map(r=>r.name),['任务1','任务2','任务3']);
 });
 
 test('material cells append ordered assets; 500 rows and 64 columns reject before mutation',()=>{

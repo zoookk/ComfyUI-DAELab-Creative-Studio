@@ -179,7 +179,7 @@ export function installMaterialGroups(host,view){
         if(!colorEditing&&signature!==renderSignature){renderSignature=signature;buildPanel();}
         positionPanel();
     }
-    root.addEventListener('dae-canvas-layout',syncToolbar);
+    root.addEventListener('dae-canvas-layout',tick);
     function tick(){
         if(disposed)return;if(!view.active){closeMenu();createButton.hidden=true;restoreMedia();return;}
         decorateMedia();layoutGroups();syncToolbar();
@@ -249,6 +249,6 @@ export function installMaterialGroups(host,view){
     function key(e){if(e.target.closest('input,textarea,select,[contenteditable=true]'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='g'){e.preventDefault();e.stopImmediatePropagation();createFromSelection();return;}if(e.key==='Escape'&&drag){const current=drag;drag=null;if(current.kind==='group')e.stopImmediatePropagation();restoreDrag(current);}}
     root.addEventListener('pointerdown',down,true);root.addEventListener('pointermove',move,true);root.addEventListener('pointerup',up,true);root.addEventListener('pointercancel',up,true);root.addEventListener('lostpointercapture',up,true);root.addEventListener('keydown',key,true);
     const timer=setInterval(tick,150);
-    const controller={createFromSelection,tick,destroy(){onHide();closeMenu();disposed=true;root.removeEventListener('dae-canvas-layout',syncToolbar);clearInterval(timer);clearTimeout(noticeTimer);cancelAnimationFrame(shiftFrame);root.removeEventListener('transitionrun',onShift);root.removeEventListener('dae-canvas-wires-changed',updateWirePulse);root.removeEventListener('pointerdown',down,true);root.removeEventListener('pointermove',move,true);root.removeEventListener('pointerup',up,true);root.removeEventListener('pointercancel',up,true);root.removeEventListener('lostpointercapture',up,true);root.removeEventListener('keydown',key,true);panel.remove();toast.remove();insertion.remove();createButton.remove();sheet.remove();restoreMedia();root.removeEventListener('dae-canvas-hide',onHide);}};
+    const controller={createFromSelection,tick,destroy(){onHide();closeMenu();disposed=true;root.removeEventListener('dae-canvas-layout',tick);clearInterval(timer);clearTimeout(noticeTimer);cancelAnimationFrame(shiftFrame);root.removeEventListener('transitionrun',onShift);root.removeEventListener('dae-canvas-wires-changed',updateWirePulse);root.removeEventListener('pointerdown',down,true);root.removeEventListener('pointermove',move,true);root.removeEventListener('pointerup',up,true);root.removeEventListener('pointercancel',up,true);root.removeEventListener('lostpointercapture',up,true);root.removeEventListener('keydown',key,true);panel.remove();toast.remove();insertion.remove();createButton.remove();sheet.remove();restoreMedia();root.removeEventListener('dae-canvas-hide',onHide);}};
     tick();return controller;
 }

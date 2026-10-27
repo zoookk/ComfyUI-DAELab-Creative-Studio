@@ -1,11 +1,12 @@
 import {UPLOAD_TYPE,readAsset,slotAllowed} from '../features/assets/media_upload_model.mjs';
 import {socketCompatible} from './creative_canvas_model.mjs';
+import {adapterFor} from './creative_contract.mjs';
 
 // A virtual canvas socket projects the existing typed outputs without changing
 // serialized graph slots. Each real link therefore remains independently typed.
 export const MATERIAL_SLOT=-1;
 export const unifiedNode=node=>node.type?.startsWith('DAELAB.');
-export const inputSlots=node=>(node.inputs||[]).flatMap((p,i)=>p.widget&&p.link==null?[]:[i]);
+export const inputSlots=node=>adapterFor(node)?.canConnectInput?.(node)===false?[]:(node.inputs||[]).flatMap((p,i)=>p.widget&&p.link==null?[]:[i]);
 export function uploadKind(node){return readAsset(node.widgets?.find(w=>w.name==='asset_data')?.value)?.kind;}
 export function sourceSlots(node,index){
     if(index!==MATERIAL_SLOT)return node.outputs?.[index]?[index]:[];
@@ -18,8 +19,9 @@ export function resolveOutput(node,index,inputType){
 }
 export function targetChoices(source,index,target){
     if(source===target)return [];
-    return (target.inputs||[]).flatMap((input,i)=>input.widget&&input.link==null?[]:
-        resolveOutput(source,index,input.type)>=0?[{index:i,name:input.label||input.localized_name||input.name,type:input.type}]:[]);
+    const names=adapterFor(target)?.inputNames?.(target,source,index);
+    return inputSlots(target).flatMap(i=>{const input=target.inputs[i];return names&&!names.includes(input.name)?[]:
+        resolveOutput(source,index,input.type)>=0?[{index:i,name:input.label||input.localized_name||input.name,type:input.type}]:[];});
 }
 export function outputSelector(node,index){return `[data-side=output][data-slot="${unifiedNode(node)?MATERIAL_SLOT:index}"]`;}
 export function inputSelector(node,index){return `[data-side=input][data-slot="${unifiedNode(node)?MATERIAL_SLOT:index}"]`;}

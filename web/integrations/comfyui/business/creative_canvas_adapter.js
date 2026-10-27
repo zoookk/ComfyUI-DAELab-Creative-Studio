@@ -6,6 +6,7 @@ import {createMaterialTable,fillMaterialColumn,fillMaterialRow,fillMaterialCell,
 import {app} from '/scripts/app.js';
 import {materialItem} from '../../../features/table/public_helpers.mjs';
 import {videoResultAssets} from '../../../features/generation/libtv_video_model.mjs';
+import {generationInputNames} from '../../../features/generation/generation_input.js';
 const key=Symbol.for('DAELAB.CreativeCanvas.API.v1');
 const tables=['DAELAB.Table','DAELAB.StoryboardImport'];
 let registered=false;
@@ -54,10 +55,14 @@ function register(){
         compactWidth:0,
         width:node=>node.type==='DAELAB.Table'?1140:tables.includes(node.type)?1060:node.type==='DAELAB.LibTV.VideoGenerate'?900:460,
         action:()=>null,
+        refresh:node=>node.__libtvPanel?.sync(),
         panel:node=>{const p=node.__dataTablePanel||node.__libtvPanel;return p?{root:p.root,buttons:p.creativeButtons,fields:p.creativeFields,close:()=>p.close?.()}:null;},
         summary:node=>tables.includes(node.type)?`${node.__dataTable?.records?.length||0} 条记录`:null,
         preview:node=>({url:node.properties?.daelabLibTVResult,kind:'video'}),
         inputLabels:{table_json:'表格任务',first_frame:'首帧',last_frame:'尾帧',reference_images:'参考图片',reference_video:'参考视频',text_input:'描述文本'},
+        canConnectInput:node=>node.type!=='DAELAB.Table',
+        inputNames:(node,source,slot)=>node.type==='DAELAB.LibTV.VideoGenerate'?generationInputNames(node,source,slot):undefined,
+        inputSelection:node=>node.type==='DAELAB.LibTV.VideoGenerate'?'first-free':undefined,
         prepareCopy(node,data){
             if(data.properties?.[NAMESPACE])delete data.properties[NAMESPACE];
             for(const [i,w] of (node.widgets||[]).entries())if(data.widgets_values){

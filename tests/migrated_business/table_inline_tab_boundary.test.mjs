@@ -8,7 +8,7 @@ function setup(t,columns){
  const saved=new Map(),calls=[];
  const set=(key,value)=>{saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});};
  class Element{
-  constructor(){this.dataset={};this.listeners=new Map();this.attributes=new Map();this.draggable=true;this.contentEditable='false';this.nodeType=1;this.value='before';this.children=[];}
+  constructor(){this.dataset={};this.listeners=new Map();this.attributes=new Map();this.draggable=true;this.contentEditable='false';this.nodeType=1;this.value='before';this.textContent='before';this.children=[];}
   addEventListener(type,fn){const a=this.listeners.get(type)||[];a.push(fn);this.listeners.set(type,a);}
   removeEventListener(type,fn){this.listeners.set(type,(this.listeners.get(type)||[]).filter(x=>x!==fn));}
   dispatchEvent(e){for(const fn of this.listeners.get(e.type)||[])fn(e);return !e.defaultPrevented;}

@@ -41,12 +41,17 @@ export function deletePromptReference(box,event){
 // Shared in-place editing lifecycle for text and structured prompt cells.
 // Mutations use the table transaction owner; the displayed DOM is not replaced while typing.
 export function bindInlineEditor({cell,box,label,read,write,reset,draw,columns,getColumnChip,onCleanup,allowDoubleClick=true,notify=()=>{}}){
- let active=false,composing=false,range=null,menu=null,picker=null,queryRange=null,wasDraggable=false,positionFrame=null;
+ let active=false,composing=false,range=null,menu=null,picker=null,queryRange=null,wasDraggable=false,positionFrame=null,caretTail=null;
  const position=()=>{if(menu&&positionFrame===null)positionFrame=requestAnimationFrame(()=>{positionFrame=null;place();});};
  const closeMenu=()=>{window.removeEventListener('resize',position);document.removeEventListener('scroll',position,true);if(positionFrame!==null)cancelAnimationFrame(positionFrame);positionFrame=null;menu?.remove();menu=null;picker=null;queryRange=null;box.removeAttribute('aria-controls');box.removeAttribute('aria-activedescendant');};
  const selection=()=>{const s=getSelection();if(s?.rangeCount&&box.contains(s.anchorNode))range=s.getRangeAt(0).cloneRange();return range;};
  const persist=()=>{try{write(read());box.removeAttribute('aria-invalid');return true;}catch(e){box.setAttribute('aria-invalid','true');notify(e.message);return false;}};
- function insert(node,replace=range){box.focus();if(!replace||!box.contains(replace.startContainer)){replace=document.createRange();replace.selectNodeContents(box);replace.collapse(false);}replace.deleteContents();replace.insertNode(node);replace.setStartAfter(node);replace.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(replace);selection();}
+ function keepTrailingCaret(){
+  if(!box.textContent.endsWith('\n')||caretTail&&box.contains(caretTail))return;
+  // A trailing newline needs an inline box for Chromium to keep the caret on the new line.
+  caretTail=document.createElement('span');caretTail.contentEditable='false';caretTail.setAttribute('aria-hidden','true');caretTail.style.cssText='display:inline-block;width:0;height:1em';box.append(caretTail);
+ }
+ function insert(node,replace=range){box.focus();if(!replace||!box.contains(replace.startContainer)){replace=document.createRange();replace.selectNodeContents(box);replace.collapse(false);}replace.deleteContents();replace.insertNode(node);replace.setStartAfter(node);replace.collapse(true);keepTrailingCaret();const s=getSelection();s.removeAllRanges();s.addRange(replace);selection();}
  function place(){if(!menu)return;const r=queryRange?.getBoundingClientRect(),fallback=box.getBoundingClientRect(),anchor=r?.width||r?.height?r:fallback;const h=menu.getBoundingClientRect().height;
   menu.style.left=Math.max(8,Math.min(anchor.left,innerWidth-menu.getBoundingClientRect().width-8))+'px';menu.style.top=Math.max(8,Math.min(anchor.bottom+6,innerHeight-h-8))+'px';picker?.layout();}
  function choose(option){const node=getColumnChip(option);node.removeAttribute('tabindex');insert(node,queryRange);insert(document.createTextNode(''));closeMenu();persist();}
@@ -60,9 +65,9 @@ export function bindInlineEditor({cell,box,label,read,write,reset,draw,columns,g
  function start(event){if(active)return;active=true;wasDraggable=cell.draggable;cell.dataset.inlineEditing='true';cell.dispatchEvent(new CustomEvent('dae-inline-edit-start',{bubbles:true}));cell.draggable=false;draw?.(true);box.querySelectorAll('[contenteditable=false]').forEach(e=>e.removeAttribute('tabindex'));box.contentEditable='true';box.setAttribute('role','textbox');box.setAttribute('aria-label',label);box.setAttribute('aria-multiline','true');box.setAttribute('spellcheck','false');box.focus({preventScroll:true});
   // Preserve the double-click location; keyboard entry starts at the end.
   let caret=event?.clientX!=null?document.caretRangeFromPoint?.(event.clientX,event.clientY):null;
-  if(!caret||!box.contains(caret.startContainer)){caret=document.createRange();caret.selectNodeContents(box);caret.collapse(false);}const s=getSelection();s.removeAllRanges();s.addRange(caret);selection();
+  if(!caret||!box.contains(caret.startContainer)){caret=document.createRange();caret.selectNodeContents(box);caret.collapse(false);}keepTrailingCaret();const s=getSelection();s.removeAllRanges();s.addRange(caret);selection();
  }
- function finish(cancel=false){if(!active)return;closeMenu();if(cancel)reset();active=false;box.contentEditable='false';delete cell.dataset.inlineEditing;cell.draggable=wasDraggable;box.removeAttribute('role');box.removeAttribute('aria-multiline');box.removeAttribute('aria-invalid');draw?.();}
+ function finish(cancel=false){if(!active)return;closeMenu();if(cancel)reset();caretTail?.remove();caretTail=null;active=false;box.contentEditable='false';delete cell.dataset.inlineEditing;cell.draggable=wasDraggable;box.removeAttribute('role');box.removeAttribute('aria-multiline');box.removeAttribute('aria-invalid');draw?.();}
  const double=e=>{if(!allowDoubleClick||e.target.closest('button'))return;e.preventDefault();e.stopPropagation();start(e);};
  const enter=e=>{if(!active&&!composing&&!e.isComposing&&e.keyCode!==229&&(e.target===cell||e.target===box)&&e.key==='Enter'){e.preventDefault();e.stopPropagation();start();}};
  const edit=()=>start();cell.addEventListener('dblclick',double);cell.addEventListener('keydown',enter);cell.addEventListener('dae-edit-text',edit);

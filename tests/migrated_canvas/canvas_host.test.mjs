@@ -205,34 +205,58 @@ function canvasExtensionFixture(){
     .replace(/^import .*;\r?$/gm,'').replaceAll('import.meta.url',JSON.stringify('file:///test/creative_canvas.js'));
   const noop=()=>{};
   const bound=new Function('app','enterCanvasGraphMode','publishAPI','publishInputExchange','publishPanelContext','installComfyTVAdapter','document','console','STATE_KEY',
-    entry+'\nreturn {extension:app.extension,setView(value){view=value;},switchMode};')(
+    entry+'\nreturn {extension:app.extension,setView(value){view=value;},switchMode,installWorkflowView};')(
       app,enterCanvasGraphMode,noop,noop,noop,noop,{querySelector:()=>null},{error:noop},'daelabCreativeCanvasV1');
   bound.setView(view);return {...bound,app,view,workflow,calls};
 }
 
-test('saved canvas restores only after native activation, never in afterConfigureGraph',async()=>{
-  const {extension,app,calls,workflow,view}=canvasExtensionFixture();
-  assert.equal(extension.afterConfigureGraph,undefined);
-  extension.beforeLoadGraph();assert.deepEqual(calls,[['hide',false]]);
-  app.extensionManager.workflow.activeWorkflow=null;
-  // Matches native loadGraphData order: configure, activate workflow, afterLoadGraph.
-  assert.equal(view.active,false);
-  app.extensionManager.workflow.activeWorkflow=workflow;
-  assert.equal(await extension.afterLoadGraph(),true);
+test('saved canvas restores after native loading activates the workflow and preserves the load contract',async()=>{
+  const {app,calls,view,installWorkflowView}=canvasExtensionFixture();
+  const args=[{nodes:[]},false,true,'saved workflow',{skipAssetScans:true}],result={loaded:true};
+  let finish;
+  app.loadGraphData=async function(...received){
+    assert.equal(this,app);assert.deepEqual(received,args);
+    assert.deepEqual(calls,[['hide',false]]);assert.equal(view.active,false);
+    app.extensionManager.workflow.activeWorkflow=null;
+    await new Promise(resolve=>finish=resolve);
+    app.extensionManager.workflow.activeWorkflow={activeMode:null,initialMode:'graph'};
+    return result;
+  };
+  installWorkflowView();const loading=app.loadGraphData(...args);
+  assert.equal(view.active,false);finish();
+  assert.equal(await loading,result);
   assert.deepEqual(calls,[['hide',false],'show']);
   assert.equal(app.graph.extra.daelabCreativeCanvasV1.active,true);
 });
 
 test('pending overlay entry cannot reopen a workflow after a load or supersede a later mode choice',async()=>{
-  const {extension,app,switchMode,workflow,calls,view}=canvasExtensionFixture();
-  const restore=switchMode(true);extension.beforeLoadGraph();
+  const {app,switchMode,workflow,calls,view,installWorkflowView}=canvasExtensionFixture();
+  app.loadGraphData=async()=>{};app.graph.extra.daelabCreativeCanvasV1.active=false;installWorkflowView();
+  const restore=switchMode(true),loading=app.loadGraphData();
   assert.equal(await restore,false);assert.equal(view.active,false);
+  await loading;
   const show=switchMode(true),hide=switchMode(false);
   assert.equal(await show,false);assert.equal(await hide,true);assert.equal(view.active,false);
   const pending=switchMode(true);
   app.extensionManager.workflow.activeWorkflow={activeMode:'graph'};
   assert.equal(await pending,false);assert.equal(calls.includes('show'),false);
   assert.equal(workflow.activeMode,null);
+});
+
+test('a superseded load cannot restore the overlay and failed loads retain native errors',async()=>{
+  const {app,calls,view,installWorkflowView}=canvasExtensionFixture();
+  let finish;
+  const failure=new Error('native load failed');
+  app.loadGraphData=async kind=>{
+    if(kind==='slow')await new Promise(resolve=>finish=resolve);
+    if(kind==='error')throw failure;
+  };
+  installWorkflowView();const slow=app.loadGraphData('slow');
+  app.graph.extra.daelabCreativeCanvasV1.active=false;await app.loadGraphData('graph');
+  app.graph.extra.daelabCreativeCanvasV1.active=true;finish();await slow;
+  assert.equal(calls.includes('show'),false);assert.equal(view.active,false);
+  await assert.rejects(app.loadGraphData('error'),error=>error===failure);
+  assert.equal(calls.includes('show'),false);
 });
 
 test('host readiness prevents all history graph reads before native initialization',async()=>{

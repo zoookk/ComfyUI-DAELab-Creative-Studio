@@ -102,7 +102,7 @@
 .dae-ui .dae-table-material[data-material-sort-source=true]{transition:none;background:color-mix(in srgb,var(--dae-focus) 10%,var(--dae-surface-low))}
 .dae-ui .dae-table-material[data-material-sort-source=true] .dae-table-material-face{opacity:0}
 .dae-ui .dae-table-material[data-material-sort-source=true]::after{content:'';position:absolute;inset:0;border:2px dashed var(--dae-focus);border-radius:inherit;box-shadow:none;pointer-events:none}
-.dae-ui .content-text{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;box-sizing:border-box;line-height:1.6}
+.dae-ui .content-text{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;box-sizing:border-box;min-height:56px;border-radius:0;line-height:28px}
 .dae-ui .dae-table td>textarea.content-edit{position:relative!important;inset:auto!important;width:100%!important;height:180px!important;min-height:120px!important;max-height:400px;padding:14px!important;resize:vertical;box-sizing:border-box}
 .dae-ui .content-goal{font-size:12px;font-weight:400;color:var(--dae-text-muted);display:block;padding-top:3px}
 [data-canvas-panel=true] [data-content-presentation=true].dae-table-panel{height:auto;min-height:0;padding:0;border:0;background:transparent;gap:0;overflow:visible}
@@ -257,7 +257,7 @@
 .dae-ui.table-column-popover button[data-primary=true]{background:var(--dae-primary-container,#494463);color:var(--dae-on-primary-container,#eee)}
 .dae-ui.table-column-popover .table-column-error{margin:8px 0 0;color:var(--dae-error,#ffb4ab)}
 :is(.dae-ui,.dae-creative) .dae-prompt-active{outline:2px solid var(--dae-focus,#9ce8c4)!important;outline-offset:-2px!important}
-:is(.dae-ui,.dae-creative) .dae-prompt-preview{line-height:28px!important}
+:is(.dae-ui,.dae-creative) .dae-prompt-preview{min-height:28px;line-height:28px!important}
 :is(.dae-ui,.dae-creative) .dae-prompt-ref{vertical-align:middle;height:24px;line-height:24px;padding:0 5px;box-sizing:border-box;font-size:inherit;font-weight:inherit}
 :is(.dae-ui,.dae-creative) .dae-table td[data-inline-editing=true]{background:transparent!important;box-shadow:none!important;outline:none!important}
 

@@ -11,7 +11,7 @@ export const PROMPT_SETTINGS_TEMPLATE=Object.freeze([
  {key:'size',label:'比例／分辨率',icon:'aspect-ratio-line',settings:['ratio','resolution','width','height']},
  {key:'duration',label:'时间',icon:'time-line',settings:['duration']},
 ]);
-export const generationModeLabels={text2video:'文生视频',singleImage2video:'首帧',frames2video:'首尾帧',image2video:'多图参考',mixed2video:'混合参考',text2image:'文生图',image2image:'参考图',audio2video:'音频参考'};
+export const generationModeLabels={text2video:'文生视频',singleImage2video:'首帧',frames2video:'首尾帧',image2video:'全能参考',mixed2video:'全能参考',text2image:'文生图',image2image:'参考图',audio2video:'音频参考'};
 function sizeLabel(settings){
  const width=Number(settings.width),height=Number(settings.height),dimensions=width>0&&height>0;
  let ratio=settings.ratio;
@@ -222,7 +222,7 @@ export function createGenerationParameters(config,schema,{onMode,onSetting,onSet
  }
  return root;
 }
-export const generationModeChoice=mode=>mode==='singleImage2video'?'frames2video':mode;
+export const generationModeChoice=mode=>mode==='singleImage2video'?'frames2video':mode==='image2video'?'mixed2video':mode;
 export function generationModes(schema,kind){
  const modes=Object.keys(schema.properties?.modeType?.items||{}),common=kind==='video'?['text2video','singleImage2video','frames2video','image2video','mixed2video']:['text2image','image2image'];
  if(schema.config?.strictModes)return modes;

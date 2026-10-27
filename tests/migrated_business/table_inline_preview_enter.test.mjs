@@ -8,7 +8,9 @@ function setup(t){
  const saved=new Map();
  const set=(key,value)=>{saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});};
  class Element{
-  constructor(name='DIV'){this.nodeName=name;this.nodeType=1;this.dataset={};this.attributes=new Map();this.listeners=new Map();this.children=[];this.parentNode=null;this.contentEditable='false';this.draggable=true;this.value='';}
+  constructor(name='DIV'){this.nodeName=name;this.nodeType=1;this.dataset={};this.attributes=new Map();this.listeners=new Map();this.children=[];this.parentNode=null;this.contentEditable='false';this.draggable=true;this.value='';this.style={};}
+  get textContent(){return this.value;}
+  remove(){if(this.parentNode)this.parentNode.children.splice(this.parentNode.children.indexOf(this),1);this.parentNode=null;}
   append(child){this.children.push(child);child.parentNode=this;}
   contains(node){return node===this||this.children.some(child=>child===node||child.contains?.(node));}
   addEventListener(type,fn){const list=this.listeners.get(type)||[];list.push(fn);this.listeners.set(type,list);}
@@ -22,7 +24,7 @@ function setup(t){
   focus(){document.activeElement=this;}
  }
  const selection={rangeCount:0,anchorNode:null,removeAllRanges(){this.rangeCount=0;},addRange(range){this.range=range;this.anchorNode=range.startContainer;this.rangeCount=1;},getRangeAt(){return this.range;}};
- const doc={activeElement:null,removeEventListener(){},createTextNode(text){return {nodeType:3,textContent:text};},createRange(){return {
+ const doc={createElement:name=>new Element(name),activeElement:null,removeEventListener(){},createTextNode(text){return {nodeType:3,textContent:text};},createRange(){return {
   startContainer:null,selectNodeContents(node){this.startContainer=node;},collapse(){this.collapsed=true;},cloneRange(){return {...this};},
   deleteContents(){},insertNode(node){this.startContainer.append(node);this.startContainer.value+=node.textContent;},setStartAfter(node){this.startContainer=node.parentNode;}
  };}};

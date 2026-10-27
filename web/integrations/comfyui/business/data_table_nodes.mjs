@@ -1,7 +1,7 @@
 import {tableClipboard} from './table_capabilities.js';
 import {bindBusinessDocument,tableInputStamp} from './business_document_host.js';
 import {businessFetch} from '../../../contracts/business.js';
-import {readTableView} from '../../../application/table_exchange.mjs';
+import {isTableSource,readTableView} from '../../../application/table_exchange.mjs';
 import {createTableWidgetSerializer} from './table_serializer.js';
 import {removeEmptyTableNode} from '../../../features/table/public_helpers.mjs';
 import {preserveGenerationHistory} from '../../../features/generation/table_generation_history.mjs';
@@ -160,6 +160,11 @@ function createPanel(node){
 function install(node){
  if(!node.graph)return;
  if(isGeneric(node)&&!node.inputs?.some(i=>i.name==='source_table'))node.addInput('source_table','STRING');
+ if(isGeneric(node)){
+  const index=node.inputs.findIndex(input=>input.name==='source_table'),link=node.graph.links[node.inputs[index].link],source=node.graph.getNodeById(link?.origin_id);
+  // Old STRING sockets accepted text nodes; that hidden link blocks table reads.
+  if(source&&(!isTableSource(source)||link.origin_slot!==0))node.disconnectInput(index);
+ }
  const duplicate=node.graph._nodes?.some(n=>n!==node&&n.properties?.[NAMESPACE]?.tableId&&n.properties[NAMESPACE].tableId===node.properties?.[NAMESPACE]?.tableId);ensureIdentity(node.graph,node,{duplicate});
 
  const raw=widget(node,dataName(node))?.value;
@@ -179,6 +184,13 @@ export function registerTableNodes(){
  if(globalThis.__DAELAB_TABLE_VERSION===VERSION)return;globalThis.__DAELAB_TABLE_VERSION=VERSION;
  app.registerExtension({name:'DAELab.DataTable',beforeRegisterNodeDef(type,data){
   if(!TYPES.includes(data.name))return;
+  if(data.name==='DAELAB.Table'){
+   const connectInput=type.prototype.onConnectInput;
+   type.prototype.onConnectInput=function(index,outputType,output,source,sourceSlot){
+    if(this.inputs[index]?.name==='source_table'&&(!isTableSource(source)||sourceSlot!==0))return false;
+    return connectInput?.apply(this,arguments)??true;
+   };
+  }
   for(const method of ['onNodeCreated','onAdded','onConfigure']){const prev=type.prototype[method];type.prototype[method]=function(){const result=prev?.apply(this,arguments);if(method==='onConfigure'&&this.__dataTablePanel){this.__dataTablePanel.close();this.__dataTablePanel.editor.invalidateAsync();this.__dataTablePanel.editor.history.undoStack=[];this.__dataTablePanel.editor.history.redoStack=[];}scheduleTableInstall(this,install);return result;};}
   const removed=type.prototype.onRemoved;type.prototype.onRemoved=function(){removeOwnedWidgets(this,OWNER);delete this.__dataTablePanel;delete this.__daelabStoryboardRender;delete this.__storyboardResultUI;return removed?.apply(this,arguments);};
  }});

@@ -47,7 +47,9 @@ export function attachTableStructure({root,shell,table,getTable,change,notify,ge
         node.setAttribute('role','dialog');node.setAttribute('aria-label','新增列');
         const title=el('strong','',target?(before?'在左侧插入列':'在右侧插入列'):'新增列');
         const name=el('input',''),type=el('select','');name.required=true;name.maxLength=100;name.value=`列 ${getTable().fields.length+1}`;name.setAttribute('aria-label','列名称');
-        for(const [value,label] of [['content','图片/视频'],['generation','生成'],['prompt','文本'],['checkbox','勾选']])type.add(new Option(label,value));
+        for(const [value,label] of [['content','图片/视频'],['generation','生成列（仅测试用）'],['prompt','文本']])type.add(new Option(label,value));
+        let defaultName=name.value;
+        type.onchange=()=>{const next=type.value==='generation'?'生成列（仅测试用）':`列 ${getTable().fields.length+1}`;if(name.value===defaultName)name.value=next;defaultName=next;};
         type.setAttribute('aria-label','列类型');
         const label=(text,input)=>{const item=el('label','',text);item.append(input);return item;};
         const error=el('p','table-column-error');error.setAttribute('role','status');

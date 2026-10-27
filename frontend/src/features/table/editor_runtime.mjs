@@ -181,7 +181,7 @@ export function createTableEditor({getTable,setTable,upload,notify=()=>{},getRow
  function editField(id=null){
     const field=getTable().fields.find(f=>f.id===id),d=openDialog(field?'设置字段':'新增字段');
     function input(label,tag,value){const l=element('label','',d);l.append(document.createTextNode(label));const e=element(tag,'',l);e.setAttribute('aria-label',label);if(tag!=='select')e.value=value??'';return e;}
-    const name=input('字段名称','input',field?.name),type=input('字段类型','select');for(const t of FIELD_TYPES.filter(t=>!promptColumnsOnly||!['text','longtext','number'].includes(t)))type.add(new Option(promptColumnsOnly&&t==='json'?'文本（支持 @ 引用）':FIELD_LABELS[t],t));type.value=field?.type||(promptColumnsOnly?'json':getTable().meta.material_columns?'assets':'text');type.disabled=Boolean(field?.readonly||isPrompt(field));
+    const name=input('字段名称','input',field?.name),type=input('字段类型','select');for(const t of FIELD_TYPES.filter(t=>(t!=='checkbox'||field?.type==='checkbox')&&(!promptColumnsOnly||!['text','longtext','number'].includes(t))))type.add(new Option(promptColumnsOnly&&t==='json'?'文本（支持 @ 引用）':FIELD_LABELS[t],t));type.value=field?.type||(promptColumnsOnly?'json':getTable().meta.material_columns?'assets':'text');type.disabled=Boolean(field?.readonly||isPrompt(field));
     const options=input('单选选项（每行一个）','textarea',(field?.options||[]).join('\n')),width=input('列宽','input',field?.width||180);width.type='number';width.min=100;width.max=600;
     const error=element('p','',d);
     d.append(tableButton('取消',()=>d.remove()),tableButton('保存字段',()=>{
@@ -298,7 +298,7 @@ export function createTableEditor({getTable,setTable,upload,notify=()=>{},getRow
     cell.ondragenter=cell.ondragover=e=>{if(drag?.kind==='asset'&&(f.readonly||!['assets','content'].includes(f.type)))return;if(drag?.kind!=='row'&&drag?.kind!=='column'){dragOver(e,cell);if(drag?.kind==='asset'){const target=assetDropPosition(e,r,f);if(target&&!target.sorting)target.item.dataset.materialDropSide=target.side;}}};cell.ondrop=e=>dropCell(e,r,f);
     cell.ondragleave=e=>{if(!cell.contains(document.elementFromPoint(e.clientX,e.clientY))){delete cell.dataset.drop;cell.querySelectorAll('[data-material-drop-side]').forEach(item=>delete item.dataset.materialDropSide);if(materialSort?.cell===cell)clearMaterialSort();}};
     const value=r.values[f.id]??emptyValue(f);
-    if(f.type==='content'){if(!displayContent())draggable(cell,{kind:'cell',record:r.id,field:f.id});renderContentCell(cell,r,f,{change:(fn,settings)=>changeCell(cell,fn,settings),upload,beginAsync,releaseAsync,notify,getTable,onCleanup,bindAssetDrag:(element,asset)=>draggable(element,{kind:'asset',record:r.id,field:f.id,asset:asset.id})});}
+    if(f.type==='content'||['text','longtext'].includes(f.type)&&!isPrompt(f)&&!f.readonly){if(!displayContent())draggable(cell,{kind:'cell',record:r.id,field:f.id});renderContentCell(cell,r,f,{change:(fn,settings)=>changeCell(cell,fn,settings),upload,beginAsync,releaseAsync,notify,getTable,onCleanup,bindAssetDrag:(element,asset)=>draggable(element,{kind:'asset',record:r.id,field:f.id,asset:asset.id})});}
     else if(renderCell?.({cell,row:r,field:f,onCleanup})){}
     else if(f.type==='assets'){
       if(t.view==='cards'){const ref=referenceButton(t,f);if(ref)cell.append(ref);}
@@ -321,7 +321,7 @@ export function createTableEditor({getTable,setTable,upload,notify=()=>{},getRow
       if(!f.readonly){const picker=element('input','',cell);picker.type='file';picker.multiple=f.maxItems!==1;picker.accept='.png,.jpg,.jpeg,.webp';picker.hidden=true;picker.onchange=()=>uploadInto(r.id,f.id,[...picker.files]);const add=tableButton(value.length?'＋':'＋ 素材',()=>picker.click());add.className='asset-add';add.title='上传素材';add.setAttribute('aria-label','上传素材');assets.append(add);}
     }else if(f.readonly || f.type==='json') {const text=element('div','readonly-value',cell);text.textContent=typeof value==='object'?JSON.stringify(value,null,2):String(value);if(!f.readonly){const edit=tableButton('编辑 JSON',()=>{const next=prompt('JSON 内容',JSON.stringify(value));if(next!==null)safely(()=>change(n=>setValue(n,r.id,f.id,next)));});cell.append(edit);}}
     else{
-      const input=element(f.type==='longtext'?'textarea':f.type==='select'?'select':'input','',cell);input.setAttribute('aria-label',`${f.name} · 第 ${ri+1} 行`);if(['text','longtext','number'].includes(f.type))input.placeholder=f.readonly?'':'点击填写';
+      const input=element(f.type==='select'?'select':'input','',cell);input.setAttribute('aria-label',`${f.name} · 第 ${ri+1} 行`);if(f.type==='number')input.placeholder='点击填写';
       if(f.type==='select'){input.add(new Option('',''));for(const option of f.options||[])input.add(new Option(option,option));}
       if(f.type==='checkbox'){input.type='checkbox';input.checked=Boolean(value);}else{if(f.type==='number')input.type='number';input.value=value??'';}
       input.onfocus=()=>{choose(r.id,f.id);editGroup=uid();};input.onblur=()=>editGroup=null;

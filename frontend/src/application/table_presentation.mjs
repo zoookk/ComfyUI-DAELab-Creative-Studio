@@ -42,8 +42,8 @@ export function installContentPresentation({root,editor,getTable,notify,editProm
             toolbar.append(button('提示词模板',()=>{let id=promptField(getTable());if(!getTable().fields.some(f=>f.id===id)){mutate(t=>{const f=addField(t,{name:'最终提示词',type:'json',presentation:'prompt',width:360});id=f.id;t.meta.prompt_config||={};t.meta.prompt_config.bindings||={};t.meta.prompt_config.bindings.final_prompt=id;});}editPromptTemplate?.(id);}),button('撤销',()=>{editor.restore();signature='';}),button('重做',()=>{editor.restore(true);signature='';}));
             const density=el('select');density.setAttribute('aria-label','内容显示');for(const [v,n] of [['comfortable','舒适'],['compact','紧凑']])density.add(new Option(n,v));density.value=getTable().meta.density||'comfortable';density.onchange=()=>mutate(t=>t.meta.density=density.value);toolbar.append(density);
         }else if(selected.kind==='column'){
-            toolbar.append(button('重命名',rename));if(prompt)toolbar.append(button('编辑整列模板',()=>editPromptTemplate?.(selected.field)));const target=el('select');target.setAttribute('aria-label','列目标');for(const [v,n] of [['','无目标'],['image','图像生成']])target.add(new Option(n,v));target.value=field()?.goal||'';target.onchange=()=>mutate(t=>t.fields.find(f=>f.id===selected.field).goal=target.value);toolbar.append(target);
-            toolbar.append(button('复制列',()=>mutate(t=>{const old=t.fields.find(f=>f.id===selected.field),next=addField(t,{...clone(old),id:uid(),name:old.name+' 副本'});reorder(t.fields,next.id,old.id,true);for(const r of t.records){r.values[next.id]=clone(r.values[old.id]??emptyValue(old));if(Array.isArray(r.values[next.id]))for(const a of r.values[next.id])a.id=uid();}selected={kind:'column',field:next.id};})),button('清空列',()=>mutate(t=>{const f=t.fields.find(f=>f.id===selected.field);delete f.promptTemplate;for(const r of t.records)r.values[f.id]=emptyValue(f);})),button('删除列',()=>mutate(t=>{removeField(t,selected.field);selected={kind:'table'};})));
+            toolbar.append(button('重命名',rename));
+            toolbar.append(button('复制列',()=>mutate(t=>{const old=t.fields.find(f=>f.id===selected.field),next=addField(t,{...clone(old),id:uid(),name:old.name+' 副本'});reorder(t.fields,next.id,old.id,true);for(const r of t.records){r.values[next.id]=clone(r.values[old.id]??emptyValue(old));if(Array.isArray(r.values[next.id]))for(const a of r.values[next.id])a.id=uid();}selected={kind:'column',field:next.id};})),button('删除列',()=>mutate(t=>{removeField(t,selected.field);selected={kind:'table'};})));
         }else if(selected.kind==='row'){
             const recordId=selected.record;
             toolbar.append(button('重命名',rename),button('复制行',()=>mutate(t=>{
@@ -51,16 +51,11 @@ export function installContentPresentation({root,editor,getTable,notify,editProm
                 Object.assign(copy,source,{id:copy.id,name:(source.name||'任务'+(t.records.findIndex(r=>r.id===recordId)+1))+' 副本',selected:false});
                 if(copy.meta){delete copy.meta.generation;delete copy.meta.generationColumns;}
                 selected={kind:'row',record:copy.id};
-            })),button('清空行',()=>mutate(t=>{
-                const row=t.records.find(row=>row.id===recordId);
-                for(const field of t.fields)row.values[field.id]=field.promptTemplate?{kind:'column-template',version:1,segments:[]}:emptyValue(field);
-                if(row.meta){delete row.meta.generation;delete row.meta.generationColumns;delete row.meta.generationFrames;}
             })),button('删除行',()=>mutate(t=>{t.records=t.records.filter(r=>r.id!==recordId);selected={kind:'table'};})));
         }else{
             const f=field(),value=getTable().records.find(r=>r.id===selected.record)?.values[f?.id];
             const region=editor.selection().flat(),many=region.length>1;
             if(!many&&f?.type==='content'&&!f.readonly)toolbar.append(button('添加图片',()=>findCell()?.dispatchEvent(new Event('dae-upload'))));
-            toolbar.append(button('复制',()=>editor.copySelection()));
             if(!many&&prompt&&!f.readonly){const fill=button('应用到整列',()=>mutate(t=>{
                 const source=t.records.find(row=>row.id===selected.record);
                 applyPromptToColumn(t,selected.field,selected.record);
@@ -70,7 +65,7 @@ export function installContentPresentation({root,editor,getTable,notify,editProm
                 }
             }));fill.title='覆盖本列所有行的提示词和当前生成配置；@列引用仍读取各自行的素材，配置不再跟随默认值，可撤销';toolbar.append(fill);}
             if(!many&&['assets','content'].includes(f?.type)&&!f.readonly&&Array.isArray(value)&&value.length){const fill=button('应用到整列',()=>mutate(t=>applyMaterialCellToColumn(t,selected.field,selected.record)));fill.title='用当前格全部素材覆盖本列其他行，保留素材顺序，可撤销';toolbar.append(fill);}
-            toolbar.append(button(many?'清空选区':'清空',()=>editor.clearCells(region.length?region:[{row:{id:selected.record},field:f}])));
+            if(!many&&['assets','content'].includes(f?.type)&&!f.readonly)toolbar.append(button('清空',()=>editor.clearCells([{row:{id:selected.record},field:f}])));
         }
     }
     function choose(e){

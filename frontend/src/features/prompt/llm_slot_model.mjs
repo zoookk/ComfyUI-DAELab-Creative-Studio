@@ -26,7 +26,10 @@ export function slotRows(node,seen=new Set()){
         if(!snapshot.texts&&!snapshot.assets&&!snapshot.rows)throw new Error('无法解析此输入类型');
         snapshots.push(snapshot);
     }
-    if(!snapshots.length) return [];
+    if(!snapshots.length){
+        const source=node.properties?.llmStylePreview?.source||'';
+        return source.trim()?pairInputs([],source):[];
+    }
     return pairInputs(snapshots);
 }
 export function slotSignature(node,seen){const s=node.properties?.llmStylePreview||{};return JSON.stringify([slotRows(node,seen),s.mode||'polish',s.instruction||'',s.model||'qwen']);}

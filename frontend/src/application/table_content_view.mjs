@@ -50,7 +50,8 @@ export function renderContentCell(cell,row,field,{change,upload,notify,getTable,
             ...(field.type==='content'?{columns:()=>columnReferenceOptions(getTable(),currentRow()||row).filter(f=>f.id!==field.id),getColumnChip:reference}:{})
         });
     }
-    const picker=el('input');picker.type='file';picker.multiple=true;picker.accept='.png,.jpg,.jpeg,.webp';picker.hidden=true;cell.append(picker);if(field.type==='content'&&!field.readonly){const add=button('添加图片',()=>picker.click());add.className='content-native-add';cell.append(add);}
+    if(field.type!=='content'||field.readonly)return;
+    const picker=el('input');picker.type='file';picker.multiple=true;picker.accept='.png,.jpg,.jpeg,.webp';picker.hidden=true;cell.append(picker);const add=button('添加图片',()=>picker.click());add.className='content-native-add';cell.append(add);
     picker.onchange=async()=>{const files=[...(picker.files||[])];if(!files.length)return;const ticket=beginAsync({recordId:row.id,fieldId:field.id}),before=JSON.stringify(row.values[field.id]);
         try{const additions=[];for(const file of files)additions.push({id:uid(),url:await upload(file),name:file.name,kind:'image'});change(t=>{const current=t.records.find(r=>r.id===row.id);if(!current||JSON.stringify(current.values[field.id])!==before)throw new Error('单元格已变化，未覆盖当前内容');setValue(t,row.id,field.id,[...(Array.isArray(current.values[field.id])?current.values[field.id]:[]),...additions]);},{tickets:[ticket]});}catch(error){notify(error.message);}finally{releaseAsync(ticket);picker.value='';}};
 cell.addEventListener('dae-upload',()=>picker.click());

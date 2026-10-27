@@ -1,20 +1,20 @@
 import {bindColumnAssets} from '../features/prompt/table_prompt_template.mjs';
 import {addField,addRecord,emptyValue,normalizeTable,uid,setValue} from './table_model.mjs';
-import {addGenerationColumn} from '../features/generation/table_generation_model.mjs';
+import {setPromptSource} from '../features/prompt/table_prompt_source.mjs';
 
 export function createMaterialTable(){
     const table=normalizeTable({meta:{material_columns:true}});
     addField(table,{name:'图片/视频',type:'content',width:260});
-    const generation=addGenerationColumn(table,{name:'生成'});
-    table.fields.find(f=>f.id===generation.generation.promptFieldId).width=420;
+    const prompt=addField(table,{name:'提示词',type:'json',presentation:'prompt',generationPrompt:true,width:420});
+    setPromptSource(table,prompt.id);
     for(let i=0;i<3;i++)addRecord(table,Object.fromEntries(table.fields.map(f=>[f.id,emptyValue(f)])));
     return table;
 }
 
 // An explicit drop copies an ordered snapshot. It never establishes a hidden
 // runtime graph input or changes reviewed values again when the source changes.
-const accepts=field=>field&&!field.hidden&&!field.readonly&&['assets','content'].includes(field.type);
-export const columnDropTypes=field=>!field||field.hidden||field.readonly?[]:field.presentation==='prompt'?['text']:field.type==='content'?['image','video','text']:field.type==='assets'?['image','video']:['text','longtext'].includes(field.type)?['text']:[];
+const accepts=field=>columnDropTypes(field).includes('image');
+export const columnDropTypes=field=>!field||field.hidden||field.readonly?[]:field.presentation==='prompt'?['text']:['content','assets'].includes(field.type)?['image','video']:['text','longtext'].includes(field.type)?['text']:[];
 export const columnFillCount=(itemCount,rowCount)=>itemCount===1?Math.max(1,rowCount):itemCount;
 function materialSnapshot(collection){
     const assets=collection?.assets;

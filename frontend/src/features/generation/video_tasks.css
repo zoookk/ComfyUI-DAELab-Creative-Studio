@@ -17,7 +17,6 @@
 .video-task-input{display:flex;flex:none;max-width:45%;margin-left:auto;min-width:0;font-size:13px}
 .video-task-input select{min-width:0;max-width:100%;text-overflow:ellipsis;background:var(--dae-surface-low,#202020);color:inherit;border:1px solid var(--dae-border-control,#555);padding:6px;border-radius:8px;font:inherit}
 .video-task-rail{display:flex;gap:12px;min-width:0;align-items:center}
-.dae-ui.dae-video-tasks button.video-task-add{flex:0 0 56px;width:56px;height:56px;min-height:56px;display:grid;place-items:center;padding:0;border-radius:12px!important;background:var(--dae-surface-high,#333)!important;color:var(--dae-text-muted,#bbb)!important;font-size:32px!important;font-weight:400!important;margin-bottom:6px}
 .video-task-cards{display:flex;flex:1;gap:10px;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;padding:2px 2px 6px;scrollbar-width:thin;scrollbar-color:var(--dae-border-control,#555) transparent}
 .dae-ui.dae-video-tasks .video-task-card{position:relative;flex:0 0 380px;width:380px;min-height:88px;height:88px;max-width:100%;padding:0;border:1px solid var(--dae-border,#444)!important;border-radius:14px!important;text-align:left;background:var(--dae-surface-low,#202020)!important}
 .dae-ui.dae-video-tasks .video-task-card[data-selected=true]{border-color:var(--dae-focus,#b8c4ff)!important;background:color-mix(in srgb,var(--dae-focus,#b8c4ff) 12%,var(--dae-surface,#242424))!important;box-shadow:inset 0 0 0 1px var(--dae-focus,#b8c4ff)}
@@ -49,7 +48,7 @@
 .dae-ui.dae-video-tasks .generation-prompt-settings button[data-setting=kind]{display:none}
 .dae-ui.dae-video-tasks .generation-prompt-settings .dae-table-icon{width:18px;height:18px}
 .dae-ui.dae-video-tasks .generation-prompt-settings button[data-setting=model]{flex:0 1 auto;max-width:45%}
-.dae-ui.dae-video-tasks .generation-prompt-settings button[data-setting=parameters]{flex:1 1 180px;min-width:0;padding:6px 10px!important;border-radius:10px!important}
+.dae-ui.dae-video-tasks .generation-prompt-settings button[data-setting=parameters]{flex:0 1 auto;width:max-content;min-width:0;padding:6px 10px!important;border-radius:10px!important}
 .dae-video-tasks .generation-prompt-setting-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .video-task-actions{display:flex;align-items:center;gap:6px;margin-left:auto;flex:none}
 .dae-ui.dae-video-tasks .video-task-actions button[data-primary=true]{display:grid;place-items:center;background:var(--dae-primary,#b8c4ff)!important;color:var(--dae-on-primary,#22243d)!important;width:42px;min-width:42px;height:42px;border-radius:50%!important;padding:10px}

@@ -1,6 +1,6 @@
 import {createMaterialTable} from '../../application/table_material_columns.mjs';
-import {addField,addRecord,uid,normalizeTable} from '../../application/table_model.mjs';
-import {LOCAL_VIDEO_MODEL,GENERATION_MODELS,isGeneration,promptColumns,rowGenerationConfig,setRowGenerationConfig,generationConfigField,syncGenerationFrameTags,applyPromptContent} from './table_generation_model.mjs';
+import {addField,uid,normalizeTable} from '../../application/table_model.mjs';
+import {LOCAL_VIDEO_MODEL,GENERATION_MODELS,isGeneration,addGenerationColumn,promptColumns,rowGenerationConfig,setRowGenerationConfig,generationConfigField,syncGenerationFrameTags,applyPromptContent} from './table_generation_model.mjs';
 import {effectivePrompt,toColumnPrompt,promptContent} from '../prompt/table_prompt_template.mjs';
 import {generationMaterials} from '../../application/table_material_output.mjs';
 import {promptSourceId,requirePromptSource,setPromptSource} from '../prompt/table_prompt_source.mjs';
@@ -11,7 +11,7 @@ export function taskConfig(config={},promptFieldId){
  return {version:1,kind:'video',model:LOCAL_VIDEO_MODEL,promptFieldId,mode:'text2video',settings:{width:512,height:288,duration:2,turbo:true,seed:-1}};
 }
 export function createVideoTasks(values={}){
- const table=createMaterialTable(),field=table.fields.find(isGeneration),row=table.records[0];table.records=[row];
+ const table=createMaterialTable(),field=addGenerationColumn(table,{name:'生成结果'}),row=table.records[0];table.records=[row];
  const model=values.model||LOCAL_VIDEO_MODEL;
  field.generation=model===LOCAL_VIDEO_MODEL?taskConfig({},field.generation.promptFieldId):{version:1,kind:'video',model,promptFieldId:field.generation.promptFieldId,mode:values.mode||'text2video',settings:{duration:Number(values.duration)||5,resolution:values.resolution||'720p',ratio:values.ratio||'16:9',...(model==='Minimax H3'?{}:{enableSound:values.sound?'on':'off'})}};
  table.meta.generationProject=values.project_uuid||'';
@@ -43,11 +43,6 @@ export function importVideoTasks(source,promptId,previous){
  }
  syncGenerationFrameTags(table,fieldId,defaults);
  return {version:1,table,fieldId,currentId:table.records[0]?.id||''};
-}
-export function addVideoTask(state){
- const row=addRecord(state.table),field=state.table.fields.find(f=>f.id===state.fieldId);
- row.values[field.generation.promptFieldId]='';row.values[field.id]=[];
- syncGenerationFrameTags(state.table,field.id,field.generation,row.id);state.currentId=row.id;return row;
 }
 export function selectTaskPrompt(state,recordId,promptFieldId){
  if(state.table.meta?.generationInput&&promptFieldId!==promptSourceId(state.table))throw new Error('请在来源表格的列头切换提示词');

@@ -1,6 +1,6 @@
 import {businessHost,businessFetch} from '../../contracts/business.js';
 import {requirePromptSource,promptSourceId} from '../prompt/table_prompt_source.mjs';
-import {replaceLinkedTaskText,bindLinkedTaskReference} from './video_task_linked_prompt.mjs';
+import {replaceLinkedTaskText,bindLinkedTaskReference,clearLinkedTaskInput,linkedTaskTexts} from './video_task_linked_prompt.mjs';
 import {syncApprovedTaskRows} from './video_task_rows.mjs';
 import {appliedSnapshot} from '../prompt/llm_slot_model.mjs';
 import {createTableButton as button,tableIcon,tableTheme} from '../../ui/table_controls.mjs';
@@ -12,13 +12,14 @@ import {createTextSide} from '../../ui/text_side.mjs';
 import {isTableSource,readTableSnapshot,previewTableRow,writeTablePrompts} from '../../application/table_exchange.mjs';
 import {effectivePrompt,toColumnPrompt,promptContent} from '../prompt/table_prompt_template.mjs';
 import {tableAssets,promptText} from '../prompt/table_prompt_model.mjs';
-import {rowGenerationConfig,setRowGenerationConfig,promptColumns,syncGenerationFrameTags} from './table_generation_model.mjs';
+import {rowGenerationConfig,setRowGenerationConfig,promptColumns,syncGenerationFrameTags,generationFrames} from './table_generation_model.mjs';
 import {videoResultAssets} from './libtv_video_model.mjs';
 import {addField,uid,normalizeTable} from '../../application/table_model.mjs';
 import {fillMaterialCell} from '../../application/table_material_columns.mjs';
-import {createVideoTasks,importVideoTasks,addVideoTask,activeVideoTask,videoTaskAssets,selectTaskPrompt,syncVideoTaskInputs} from './video_tasks_model.mjs';
+import {createVideoTasks,importVideoTasks,activeVideoTask,videoTaskAssets,selectTaskPrompt,syncVideoTaskInputs} from './video_tasks_model.mjs';
 import {stopCanvasPropagation} from '../../ui/list_editor_controls.mjs';
 import {bindMaterialThumbnail} from '../../application/table_content_view.mjs';
+import {generationInputKind,generationInputRole} from './generation_input.js';
 
 const widget=(node,name)=>node.widgets?.find(w=>w.name===name);
 const element=(tag,parent,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;parent?.append(el);return el;};
@@ -56,8 +57,7 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
   const glyph=element('span',control,'dae-table-icon');glyph.setAttribute('aria-hidden','true');glyph.style.setProperty('--table-icon',`url("${new URL('../../design/vendor/remixicon/'+icon+'.svg',import.meta.url).href}")`);element('span',control,'',label);typeButtons.set(kind,control);
  }
  const importButton=tableIcon(button('重新导入表格',()=>importSource()),'restart-line','重新导入表格');importButton.classList.add('video-task-import');header.append(importButton);importButton.hidden=true;
- const rail=element('section',root,'video-task-rail');rail.setAttribute('aria-label','生成任务');
- const add=button('＋',()=>{if(node.mode)return;mutate(next=>addVideoTask(next));});add.classList.add('video-task-add');add.title='新增任务';add.setAttribute('aria-label','新增任务');rail.append(add);
+ const rail=element('section',root,'video-task-rail');rail.setAttribute('aria-label','生成任务');rail.hidden=true;
  const cards=element('div',rail,'video-task-cards');cards.setAttribute('role','tablist');cards.setAttribute('aria-label','选择任务');
  const body=element('section',root,'video-task-body');
  const bodyTop=element('div',body,'video-task-body-top');
@@ -71,8 +71,8 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
  emptyMaterial.ondrop=event=>{if(event.dataTransfer.files.length){event.preventDefault();event.stopPropagation();void uploadMaterials([...event.dataTransfer.files],state.currentId);}};
  const inputBar=element('div',bodyTop,'video-task-input');inputBar.hidden=true;
  const promptSource=element('select',inputBar);promptSource.setAttribute('aria-label','表格提示词来源');promptSource.title='提示词来源由表格列头设置';
- let materialPreviews=[];
- function clearMaterialPreviews(){for(const dispose of materialPreviews)dispose();materialPreviews=[];releaseThumbnails(materials);}
+ let materialPreviews=[],materialLabels=[];
+ function clearMaterialPreviews(){for(const dispose of materialPreviews)dispose();materialPreviews=[];materialLabels=[];releaseThumbnails(materials);}
  const prompt=element('div',body,'video-task-prompt');prompt.tabIndex=0;
  const bottom=element('footer',body,'video-task-bottom');
  const settings=createPromptSettingsBar((key,anchor)=>{if(current())void generation.chooseSetting(state.fieldId,state.currentId,key,anchor);},{combined:true});bottom.append(settings.root);
@@ -88,7 +88,9 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
  function acceptMaterials(key,collection){
   const row=state.table.records.find(r=>r.id===key);if(!row)throw new Error('任务已删除');
   if(node.mode||generation.submitting||active(row))throw new Error('请先暂停当前任务');
-  editor.change(t=>{const target=t.fields.find(f=>!f.readonly&&['content','assets'].includes(f.type))||addField(t,{name:'参考素材',type:'content'});fillMaterialCell(t,key,target.id,collection);});
+  const existing=tableAssets(state.table,row),assets=collection.assets.filter(asset=>!existing.some(old=>asset.nodeId&&old.sourceNodeId===asset.nodeId||old.url==='/view?'+new URLSearchParams({filename:asset.filename,subfolder:asset.subfolder||'',type:asset.type||'input'})));
+  if(!assets.length)return;
+  editor.change(t=>{const target=t.fields.find(f=>!f.readonly&&['content','assets'].includes(f.type))||addField(t,{name:'参考素材',type:'content'});fillMaterialCell(t,key,target.id,{...collection,assets});});
  }
  async function uploadMaterials(files,recordId){
   const row=state.table.records.find(r=>r.id===recordId);if(!files.length||!row||disposed||node.mode||uploadController||generation.submitting||active(row))return;
@@ -119,7 +121,7 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
   const before=state,next=structuredClone(state);update(next);generation?.syncPromptChanges(next.table,state.table);
   if(JSON.stringify(next)===JSON.stringify(state))return;
   notice='';
-  const derived=['table-input-sync','approved-row-sync'].includes(group),continuing=group&&group===historyGroup;
+  const derived=['table-input-sync','approved-row-sync','input-disconnect'].includes(group),continuing=group&&group===historyGroup;
   const write=()=>{
    if(writePrompts&&linkedTable&&state.source?.key===linkedTable.key){
     const source=JSON.parse(state.source.stamp),changes=[];
@@ -164,6 +166,30 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
   dialog.append(button('取消',()=>dialog.close()),button('保存',save,true));input.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();save();}};input.focus();input.select();
  }
  function syncSource(){
+  if(app?.isGraphReady===false)return;
+  const batch=(node.inputs||[]).some(input=>{
+   const link=node.graph?.links[input.link],source=node.graph?.getNodeById(link?.origin_id);
+   return source&&['table','rows'].includes(generationInputKind(source,link.origin_slot));
+  });
+  if(rail.hidden===batch){rail.hidden=!batch;schedule();}
+  const connected=new Set((node.inputs||[]).filter(input=>input.link!=null).map(input=>{
+   const link=node.graph?.links[input.link];return link?String(link.origin_id)+':'+link.origin_slot:null;
+  }));
+  const detachedSource=state.source&&!connected.has(state.source.key)||state.approvedSource&&!connected.has(state.approvedSource.key);
+  const detachedInputs=Object.keys(state.inputs||{}).filter(name=>!node.inputs?.some(input=>input.name===name&&input.link!=null));
+  if(detachedSource||detachedInputs.length){
+   binding?.finish();binding?.dispose();binding=null;delete prompt.dataset.inlineEditing;
+   generation.invalidate();clearRowHighlight();linkedTable=null;sourceKey='';
+   mutate(next=>{
+    if(detachedSource){
+     const previous=config()||field()?.generation,empty=createVideoTasks();
+     const output=empty.table.fields.find(field=>field.id===empty.fieldId);
+     if(previous)output.generation={...structuredClone(previous),promptFieldId:output.generation.promptFieldId,mode:'text2video'};
+     const scope=next.sourceScope;for(const key of Object.keys(next))delete next[key];Object.assign(next,empty,{sourceScope:scope});
+    }else for(const name of detachedInputs)clearLinkedTaskInput(next,name);
+   },{group:'input-disconnect'});
+   resultsStamp='';generation.refresh();
+  }
   let linked=null;
   inputError='';
   for(const input of node.inputs||[]){
@@ -173,6 +199,7 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
    if(isTableSource(source)){if(link.origin_slot!==0){inputError='请连接上游的 table_json 输出';continue;}if(linked&&linked.node!==source){inputError='一次连接一个多维表格';continue;}linked={node:source,key:String(source.id)+':'+link.origin_slot,raw:widget(source,'table_data')?.value};}
   }
   const rowInputs=(node.inputs||[]).filter(input=>input.link!=null).map(input=>{const link=node.graph?.links[input.link];return {input,link,source:node.graph?.getNodeById(link?.origin_id)};}).filter(({source,link})=>source?.type==='DAELAB.LLMStylePreviewB'&&link.origin_slot===1);
+  if(linked&&(node.inputs||[]).filter(input=>input.link!=null).length>1){linkedTable=null;inputError='表格与文字／图片不能混接，请断开多余连线';return;}
   if(rowInputs.length){
    linkedTable=null;inputBar.hidden=true;importButton.hidden=true;
    try{
@@ -188,9 +215,8 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
    }catch(error){inputError=error.message;}
    return;
   }
-  if(state.approvedSource&&!linked){linkedTable=null;inputBar.hidden=true;importButton.hidden=true;inputError='逐行结果输入已断开；已有结果保留，请重新连接';return;}
   linkedTable=linked;inputBar.hidden=!linked&&!state.source;importButton.hidden=!linked;
-  if(!linked){sourceKey='';if(state.source){inputError='表格输入已断开；已有结果保留，请重新连接';return;}syncLinkedMedia();return;}
+  if(!linked){sourceKey='';syncLinkedMedia();return;}
   try{requirePromptSource(readTableSnapshot(linked.node));}catch(error){inputError=error.message;}
   const sourceChanged=sourceKey!==linked.raw;sourceKey=linked.raw;
   importButton.disabled=state.table.records.some(active)||generation.submitting||!!node.mode;
@@ -208,28 +234,35 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
  }
  function syncLinkedMedia(){
   for(const input of node.inputs||[]){
-   if(input.link==null||!['text_input','first_frame','last_frame','reference_images','reference_video','table_json'].includes(input.name))continue;
+   const role=generationInputRole(input.name);
+   if(input.link==null||!['text_input','first_frame','last_frame','reference_images','reference_video','table_json','group'].includes(role))continue;
    const link=node.graph?.links[input.link],source=node.graph?.getNodeById(link?.origin_id);if(!source||source.mode)continue;
    try{
-    if(input.name==='table_json')throw new Error('表格任务接口请连接多维表格');
+    const kind=generationInputKind(source,link.origin_slot);
+    if(input.name==='table_json'||kind==='table'||kind==='rows')throw new Error('表格任务接口请连接多维表格，文字和图片使用对应入口');
     let snapshot=globalThis[Symbol.for('DAELAB.CreativeCanvas.API.v1')]?.inputSnapshot?.(source);
     if(!snapshot&&source.type==='LoadImage'){const file=widget(source,'image')?.value;if(file)snapshot={assets:[{filename:file,type:'input',kind:'image',name:file}]};}
-    if(!snapshot){const value=source.getOutputData?.(link.origin_slot)??widget(source,'value')?.value;if(typeof value==='string')snapshot=input.name==='text_input'?{texts:[value]}:{assets:[{url:value,kind:input.name==='reference_video'?'video':'image'}]};}
+    if(!snapshot){const value=source.getOutputData?.(link.origin_slot)??widget(source,'value')?.value;if(typeof value==='string')snapshot=role==='text_input'?{texts:[value]}:{assets:[{url:value,kind:role==='reference_video'?'video':'image'}]};}
     if(!snapshot||snapshot.ready===false)throw new Error('等待上游素材就绪');
-    const stamp=JSON.stringify([String(source.id),snapshot]),previous=state.inputs?.[input.name];if(previous?.stamp===stamp)continue;
+    const stamp=JSON.stringify([String(source.id),snapshot]),previous=state.inputs?.[input.name];if(previous?.stamp===stamp&&(role!=='text_input'||previous.texts))continue;
     const row=state.table.records.find(r=>r.id===previous?.recordId)||current();if(!row||active(row))continue;
     mutate(next=>{
      const target=next.table.records.find(r=>r.id===row.id),output=next.table.fields.find(f=>f.id===next.fieldId),cfg=structuredClone(rowGenerationConfig(target,next.fieldId,output.generation));
-     if(input.name==='text_input'){if(!snapshot.texts)throw new Error('此接口需要文字');replaceLinkedTaskText(next.table,target,cfg,snapshot.texts);}
-     else{
-      const incoming=snapshot.assets||[];if(!incoming.length)throw new Error('上游没有可用素材');
-      let column=next.table.fields.find(f=>f.videoInput===input.name);if(!column)column=addField(next.table,{name:({first_frame:'输入首帧',last_frame:'输入尾帧',reference_images:'参考图片',reference_video:'参考视频'})[input.name],type:'content',videoInput:input.name});
+     next.inputs||={};
+     const key=String(source.id)+':'+link.origin_slot,order=previous?.key===key?previous.order:Math.max(0,...Object.values(next.inputs).map(input=>input.order||0))+1;
+     next.inputs[input.name]={stamp,recordId:target.id,key,order,...(['text_input','group'].includes(role)?{texts:snapshot.texts||[]}:{})};
+     if(['text_input','group'].includes(role)){if(role==='text_input'&&!snapshot.texts)throw new Error('此接口需要文字');replaceLinkedTaskText(next.table,target,cfg,linkedTaskTexts(next,target.id));}
+     if(role!=='text_input'){
+      const incoming=snapshot.assets||[];if(!incoming.length&&role!=='group')throw new Error('上游没有可用素材');
+      if(incoming.some(asset=>asset.missing))throw new Error('素材组中有缺失素材，请补充后重试');
+      let column=next.table.fields.find(f=>f.videoInput===input.name);if(!column)column=addField(next.table,{name:({first_frame:'输入首帧',last_frame:'输入尾帧',reference_images:'参考图片',reference_video:'参考视频',group:'素材组'})[role],type:'content',videoInput:input.name});
       const old=target.values[column.id]||[];target.values[column.id]=incoming.map(a=>{const url=a.url||'/view?'+new URLSearchParams({filename:a.filename,subfolder:a.subfolder||'',type:a.type||'input'});if(!url.startsWith('/view?'))throw new Error('请连接本地 Comfy 素材');return {id:old.find(item=>item.url===url)?.id||uid(),kind:a.kind||'image',url,name:a.name||a.filename||'参考素材'};});
-      const role=input.name==='first_frame'?'first':input.name==='last_frame'?'last':null;
-      if(role&&cfg.kind==='video'){target.meta||={};target.meta.generationFrames||={};const frames=target.meta.generationFrames[next.fieldId]||={};frames[role]={fieldId:column.id,assetId:target.values[column.id][0].id};cfg.mode=frames.last?'frames2video':'singleImage2video';setRowGenerationConfig(target,next.fieldId,cfg);syncGenerationFrameTags(next.table,next.fieldId,output.generation,target.id);}
-      else if(['reference_images','reference_video'].includes(input.name))bindLinkedTaskReference(next.table,target,next.fieldId,cfg,column);
+      const urls=new Set(target.values[column.id].map(asset=>asset.url));
+      for(const field of next.table.fields)if(!field.videoInput&&!field.readonly&&['content','assets'].includes(field.type)&&Array.isArray(target.values[field.id]))target.values[field.id]=target.values[field.id].filter(asset=>!asset.sourceNodeId||!urls.has(asset.url));
+      const frameRole=input.name==='first_frame'?'first':input.name==='last_frame'?'last':null;
+      if(frameRole&&cfg.kind==='video'&&!['image2video','mixed2video'].includes(cfg.mode)){target.meta||={};target.meta.generationFrames||={};const frames=target.meta.generationFrames[next.fieldId]||={};frames[frameRole]={fieldId:column.id,assetId:target.values[column.id][0].id};cfg.mode=frames.last?'frames2video':'singleImage2video';setRowGenerationConfig(target,next.fieldId,cfg);syncGenerationFrameTags(next.table,next.fieldId,output.generation,target.id);}
+      else if(incoming.length||old.length)bindLinkedTaskReference(next.table,target,next.fieldId,cfg,column);
      }
-     next.inputs||={};next.inputs[input.name]={stamp,recordId:target.id};
     });
    }catch(error){inputError=error.message;}
   }
@@ -302,6 +335,7 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
    const thumb=element('div',materials,'video-task-material');thumb.title=asset.name;thumb.setAttribute('aria-label',asset.name||'参考素材');
    const media=asset.kind==='video'?videoThumb(asset,thumb):mediaThumb(asset,thumb);if(asset.kind==='video'){media.onloadedmetadata=null;if(asset.poster||asset.thumbnailUrl)media.poster=asset.poster||asset.thumbnailUrl;}
    materialPreviews.push(bindMaterialThumbnail(thumb,media,index,{cell:materials,remove:removeMaterial}));
+   materialLabels.push({asset,index,badge:thumb.querySelector('.dae-table-material-index')});
    const openPreview=()=>{const dialog=editor.openDialog(asset.name||'参考素材'),preview=element(asset.kind==='video'?'video':'img',dialog);preview.src=asset.url;if(asset.kind==='video'){preview.controls=true;preview.preload='metadata';dialog.addEventListener('close',()=>{preview.pause();preview.removeAttribute('src');preview.load();},{once:true});}const remove=button('移除素材',()=>{removeMaterial();dialog.close();});remove.disabled=active(current())||generation.submitting||!!node.mode;dialog.append(remove,button('关闭',()=>dialog.close()));};
    thumb.ondblclick=openPreview;thumb.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();openPreview();}};
   }
@@ -310,7 +344,14 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
   if(disposed)return;
   if(!current())state.currentId=state.table.records[0]?.id||'';
   const row=current(),cfg=config(),receipt=generation.stateFor(row,state.fieldId),busy=!!row&&active(row);
-  renderCards();renderPrompt();syncRowHighlight();body.hidden=!row;bodyTop.hidden=!linkedTable&&!state.source&&!materials.children.length;
+  if(!rail.hidden)renderCards();else if(cards.children.length){releaseThumbnails(cards);cards.replaceChildren();}
+  renderPrompt();syncRowHighlight();body.hidden=!row;bodyTop.hidden=!linkedTable&&!state.source&&!materials.children.length;
+  const frames=row&&cfg?generationFrames(state.table,row,state.fieldId,cfg):[];
+  for(const {asset,index,badge} of materialLabels){
+   const roles=frames.filter(frame=>frame.asset?.id===asset.id&&frame.asset.fieldId===asset.fieldId).map(frame=>frame.role);
+   const label=roles.length===2?'首尾帧':roles[0]==='first'?'首帧':roles[0]==='last'?'尾帧':String(index+1);
+   if(badge.textContent!==label)badge.textContent=label;
+  }
   const locked=busy||!!node.mode||generation.submitting||changingType;
   emptyMaterial.disabled=locked||!!uploadController||!row;
   const columns=promptColumns(state.table).filter(f=>f.id===promptSourceId(state.table)),columnStamp=JSON.stringify(columns.map(f=>[f.id,f.name]));
@@ -355,7 +396,7 @@ export function installVideoTasks(node,app,{documentFactory,taskIdentity}={}){
  window.addEventListener('dae-canvas-layout',syncRowHighlight);
  persist();generation.refresh();sync();
  return {root,status,run,creativeButtons:[],creativeFields:[],tasks:generation.tasks,sync,close:()=>{side.hide();generation.close();materials.dataset.selected='false';materials.dispatchEvent(new Event('dae-cell-selection-change'));materials.dataset.selected=String(!node.mode);materials.dispatchEvent(new Event('dae-cell-selection-change'));},assets:()=>videoTaskAssets(state),
-  materialTargets:()=>current()&&!active(current())&&!generation.submitting?[{element:body,key:state.currentId,label:'将素材加入当前任务',dropElements:[prompt],project:false}]:[],
+  materialTargets:()=>current()&&!active(current())&&!generation.submitting?[{element:body,key:state.currentId,label:rail.hidden?'松开连接到生成节点':'将素材加入当前任务',dropElements:[prompt],project:false,connect:rail.hidden,...(rail.hidden?{accepts:['image','video','text']}:{})}]:[],
   acceptMaterials,
   acceptResult(message){if(message.daelab_video_task_result)return;notify('原生任务已完成；新任务请使用节点内运行按钮');},
   dispose(){disposed=true;nativeDocument?.dispose();window.removeEventListener('dae-canvas-layout',syncRowHighlight);clearRowHighlight();uploadController?.abort();if(frame!==null)cancelAnimationFrame(frame);binding?.dispose();promptUI.destroy();generation.destroy();side.destroy();for(const dialog of dialogs)dialog.close();clearMaterialPreviews();releaseThumbnails(root);thumbnails.disconnect();root.remove();}

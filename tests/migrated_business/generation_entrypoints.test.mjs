@@ -4,17 +4,17 @@ import {registerHooks} from 'node:module';
 import {readdirSync} from 'node:fs';
 
 test('host-discovered generation lifecycle creates one bound panel per instance and after reload',async t=>{
- const extensions=[],installs=[],states=new Map();let begins=0,ends=0;
+ const extensions=[],installs=[],states=new Map(),adapters=new Map();let begins=0,ends=0;
  const app={isGraphReady:true,registerExtension:extension=>extensions.push(extension),extensionManager:{workflow:{activeWorkflow:{}}}};
  const fixture={app,install(node,_app,options={}){
-  const record={node,options,disposed:false};installs.push(record);
+  const record={node,options,disposed:false,syncedLinks:[]};installs.push(record);
   states.set(node,{table:{fields:[],records:[],meta:{}},value:'original'});
   record.document=options.documentFactory?.(()=>states.get(node),value=>states.set(node,value));
-  return {sync(){},acceptResult(){},root:{remove(){}},dispose(){record.disposed=true;record.document?.dispose();}};
+  return {sync(){record.syncedLinks.push(node.inputs[0].link);},acceptResult(){},root:{remove(){}},dispose(){record.disposed=true;record.document?.dispose();}};
  }};
  globalThis.__generationEntryFixture=fixture;
  globalThis.addEventListener=()=>{};
- globalThis[Symbol.for('DAELAB.CreativeCanvas.API.v1')]={version:1,registerAdapter(){}};
+ globalThis[Symbol.for('DAELAB.CreativeCanvas.API.v1')]={version:1,registerAdapter(name,adapter){adapters.set(name,adapter);}};
  const hooks=registerHooks({
   resolve(specifier,context,next){
    if(specifier==='/scripts/app.js')return {url:'fixture:generation-app',shortCircuit:true};
@@ -47,6 +47,13 @@ test('host-discovered generation lifecycle creates one bound panel per instance 
   assert.deepEqual(record.node.inputs,[{name:'native-input'}]);assert.deepEqual(record.node.outputs,[{name:'native-output'}]);
  }
  assert.notEqual(installs[0].options.taskIdentity.tableId,installs[1].options.taskIdentity.tableId);
+ a.onConnectionsChange();a.inputs[0].link=42;a.onConnectionsChange();
+ assert.deepEqual(installs[0].syncedLinks,[],'wait for the native connection update to finish');
+ await new Promise(resolve=>queueMicrotask(resolve));
+ assert.deepEqual(installs[0].syncedLinks,[42],'coalesced connection changes read the completed link');
+ adapters.get('daelab.business').refresh(a);
+ assert.deepEqual(installs[0].syncedLinks,[42,42],'creative canvas refresh synchronizes without native drawing');
+ assert.deepEqual(installs[1].syncedLinks,[],'other generation instances stay independent');
  installs[0].document.edit('fixture edit',draft=>{draft.value='edited';});
  assert.equal(states.get(a).value,'edited');assert.equal(states.get(b).value,'original');
  assert.equal(begins,1);assert.equal(ends,1);

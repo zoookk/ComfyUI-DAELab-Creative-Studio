@@ -97,6 +97,8 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         class IO:
             ComfyNode=object
             String=Combo=Int=Boolean=Image=Video=Type()
+            Autogrow=Type()
+            Autogrow.TemplatePrefix=lambda port, **options: {'port': port, **options}
             @staticmethod
             def Custom(_kind):return Type()
             @staticmethod
@@ -105,7 +107,10 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict(sys.modules,{'comfy_api':SimpleNamespace(),'comfy_api.latest':fake}):
             node=make_node(None);schema=node.define_schema()
             self.assertEqual(schema['node_id'],NODE_ID)
-            self.assertEqual([s[1] for s in schema['inputs']],['project_uuid','request_id','model','mode','prompt','duration','resolution','ratio','sound','reference_files','first_frame','last_frame','reference_images','reference_video','text_input','table_json','task_data'])
+            self.assertEqual([s[1] for s in schema['inputs']],['project_uuid','request_id','model','mode','prompt','duration','resolution','ratio','sound','reference_files','first_frame','last_frame','reference_images','reference_video','text_input','table_json','task_data','texts','images','groups','videos'])
+            for input in schema['inputs'][-4:]:
+                self.assertTrue(input[2]['optional'])
+                self.assertEqual(input[2]['template']['min'],0)
             self.assertEqual([s[1] for s in schema['outputs']],['video','comfytv_video','local_path','task_report','image'])
             with self.assertRaises(InvalidInput):node.execute('project','request','legacy','text2video','',4,'720p','16:9')
 

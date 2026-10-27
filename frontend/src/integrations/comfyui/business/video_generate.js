@@ -3,6 +3,7 @@ import {installVideoTasks} from '../../../features/generation/video_tasks_panel.
 import {ensureIdentity,NAMESPACE} from '../../../features/prompt/prompt_optimization_model.mjs';
 import {bindBusinessDocument,tableInputStamp} from './business_document_host.js';
 import {scheduleTableInstall} from '../../../features/table/public_helpers.mjs';
+import {generationInputNames} from '../../../features/generation/generation_input.js';
 
 const TYPE='DAELAB.LibTV.VideoGenerate';
 function dispose(node){
@@ -19,14 +20,19 @@ function install(node){
 }
 app.registerExtension({name:'DAELab.Studio.GenerationPanel',beforeRegisterNodeDef(type,data){
     if(data.name!==TYPE)return;
-    // The backend defines all 17 inputs and 5 outputs. Never rebuild native slots.
+    const connectInput=type.prototype.onConnectInput;
+    type.prototype.onConnectInput=function(index,outputType,output,source,sourceSlot){
+        if(!generationInputNames(this,source,sourceSlot,index).includes(this.inputs[index]?.name))return false;
+        return connectInput?.apply(this,arguments)??true;
+    };
+    // Native schema and Autogrow own the slots. Never rebuild them here.
     for(const method of ['onNodeCreated','onAdded','onConfigure']){
         const previous=type.prototype[method];
         type.prototype[method]=function(...args){const result=previous?.apply(this,args);if(method==='onConfigure')dispose(this);scheduleTableInstall(this,install);return result;};
     }
     for(const method of ['onDrawForeground','onConnectionsChange']){
         const previous=type.prototype[method];
-        type.prototype[method]=function(...args){const result=previous?.apply(this,args);this.__libtvPanel?.sync();return result;};
+        type.prototype[method]=function(...args){const result=previous?.apply(this,args);if(method==='onConnectionsChange')scheduleTableInstall(this,install);else this.__libtvPanel?.sync();return result;};
     }
     const removed=type.prototype.onRemoved;
     type.prototype.onRemoved=function(...args){dispose(this);return removed?.apply(this,args);};

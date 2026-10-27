@@ -60,7 +60,7 @@ function environment(t){
  return {writes,reads,timers,Element,reset(){writes.length=0;},tick(){for(const timer of timers)if(!timer.cleared)timer.callback();}};
 }
 
-function panel(t,env,id,{proposal=false,nativeInstruction=false}={}){
+function panel(t,env,id,{proposal=false,nativeInstruction=false,nativeSource=false}={}){
  const {Element}=env,upstream={id:id*10,type:'TestSyntheticInput',snapshot:{version:1,texts:[`输入 ${id}`]}},outputs=[];
  const node={id,type:'DAELAB.LLMStylePreviewB',mode:0,inputs:[{link:1}],outputs:[{},{}],properties:{llmStylePreview:{version:1,mode:'polish',model:'qwen',instruction:'手动要求',unknown:{kept:id}}},setOutputData(slot,value){outputs.push([slot,value]);}};
  node.graph={id:`llm-dom-${id}`,links:{1:{origin_id:upstream.id,origin_slot:0}},getNodeById:()=>upstream,change(){}};
@@ -68,13 +68,13 @@ function panel(t,env,id,{proposal=false,nativeInstruction=false}={}){
  if(proposal)state().ioResult={version:1,requestId:`review-${id}`,provider:'qwen',complete:true,signature:slotSignature(node),rows:[{id:'input-1',text:`输入 ${id}`,result:`结果 ${id}`} ]};
  const history={begins:0,amends:0,undo:[],redo:[]};let before;
  const nativeDocument=createBusinessDocument({read:state,write:value=>{node.properties.llmStylePreview=value;},current:()=>true,identity:()=>({workflowSession:`session-${id}`,epoch:0,documentId:`node-${id}`}),stamp:value=>[value.mode,value.model,value.instruction],historyStamp:()=>JSON.stringify(state()),history:{begin(){history.begins++;before=structuredClone(state());},end(){history.undo.push(before);history.redo.length=0;},amend(fn){history.amends++;fn();},undo(){if(history.undo.length){history.redo.push(structuredClone(state()));node.properties.llmStylePreview=history.undo.pop();}},redo(){if(history.redo.length){history.undo.push(structuredClone(state()));node.properties.llmStylePreview=history.redo.pop();}}}});
- const makeInstruction=()=>{
+ const makeField=(label,key,fallback,cls)=>{
   const write=new Function('nativeDocument','saved','node','return ('+writeClosures[0]+');')(nativeDocument,state,node);
   const el=(tag,cls,text)=>{const e=new Element(tag);if(cls)e.className=cls;if(text)e.textContent=text;return e;};
   const editor=new Function('el','saved','variant','write','fields','releases','sharedFields','return ('+editorFactories[0]+');')(el,state,{id:'B'},write,[],[],undefined);
-  return editor('处理要求','instruction','fallback','llm-style-instruction').input;
+  return editor(label,key,fallback,cls).input;
  };
- const root=new Element(),source=new Element('textarea'),instruction=nativeInstruction?makeInstruction():new Element('textarea'),select=new Element('select'),run=new Element('button'),result=new Element(),heading=new Element(),materialHint=new Element(),sourceSection=new Element();
+ const root=new Element(),source=nativeSource?makeField('原始文字','source','','llm-style-source'):new Element('textarea'),instruction=nativeInstruction?makeField('处理要求','instruction','fallback','llm-style-instruction'):new Element('textarea'),select=new Element('select'),run=new Element('button'),result=new Element(),heading=new Element(),materialHint=new Element(),sourceSection=new Element();
  root.modes=['polish','reverse'].map(mode=>{const button=new Element('button');button.dataset.mode=mode;return button;});
  source.section=sourceSection;instruction.value=state().instruction;run.append(new Element('span'));result.queries={'.llm-style-result-head':heading};materialHint.parentElement=new Element();
  const release=bindIOPanel({node,nativeDocument,root,source,instruction,select,run,result,materialHint});
@@ -82,6 +82,24 @@ function panel(t,env,id,{proposal=false,nativeInstruction=false}={}){
  const [paragraph,status,actions]=result.children,[apply,undo,regenerate,recover]=actions.children,imageSection=sourceSection.afterNode,imageBox=imageSection.children[1],[image,imageText]=imageBox.children;
  return {node,upstream,state,outputs,history,nativeDocument,root,source,instruction,select,run,paragraph,status,apply,undo,regenerate,recover,sourceSection,imageSection,imageBox,image,imageText,release};
 }
+
+test('manual source persists with native history and caret, while links temporarily take precedence in independent panels',async t=>{
+ const env=environment(t),a=panel(t,env,17,{nativeSource:true}),b=panel(t,env,18,{nativeSource:true});
+ for(const owner of [a,b]){owner.node.inputs[0].link=null;owner.release.sync();assert.equal(owner.source.readOnly,false);assert.equal(owner.run.disabled,true);}
+ document.activeElement=a.source;await a.source.emit('focus');
+ for(const text of ['手动原文','手动原文修改']){
+  a.source.value=text;a.source.selectionStart=2;a.source.selectionEnd=2;env.reset();await a.source.emit('input');env.tick();
+  assert.equal(a.state().source,text);assert.equal(a.run.disabled,false);assert.equal(b.source.value,'');assert.equal(b.run.disabled,true);
+  assert.equal(env.writes.filter(x=>x.element===a.source&&x.property==='value').length,0);assert.deepEqual([a.source.selectionStart,a.source.selectionEnd],[2,2]);
+ }
+ await a.source.emit('blur');document.activeElement=null;
+ assert.equal(a.history.begins,1);assert.equal(a.history.amends,1);
+ a.nativeDocument.undo();env.tick();assert.equal(a.source.value,'');assert.equal(a.run.disabled,true);
+ a.nativeDocument.redo();env.tick();assert.equal(a.source.value,'手动原文修改');assert.equal(a.run.disabled,false);
+ a.node.inputs[0].link=1;env.tick();assert.equal(a.source.readOnly,true);assert.equal(a.source.value,'输入 17');assert.equal(a.state().source,'手动原文修改');
+ a.node.inputs[0].link=null;env.tick();assert.equal(a.source.readOnly,false);assert.equal(a.source.value,'手动原文修改');assert.equal(b.source.value,'');
+ env.reset();env.tick();assert.equal(env.writes.length,0);
+});
 
 test('two unchanged panels perform no repeated DOM writes while polling fresh inputs and native outputs',t=>{
  const env=environment(t),a=panel(t,env,1),b=panel(t,env,2),before=[JSON.stringify(a.state()),JSON.stringify(b.state())];

@@ -110,6 +110,10 @@ def make_node(service):
                     io.String.Input('text_input', optional=True, force_input=True),
                     io.String.Input('table_json', optional=True, force_input=True),
                     io.String.Input('task_data', default='', optional=True, socketless=True, extra_dict={'hidden': True}),
+                    io.Autogrow.Input('texts', template=io.Autogrow.TemplatePrefix(io.String.Input('text'), prefix='text', min=0, max=100), optional=True),
+                    io.Autogrow.Input('images', template=io.Autogrow.TemplatePrefix(io.Image.Input('image'), prefix='image', min=0, max=100), optional=True),
+                    io.Autogrow.Input('groups', template=io.Autogrow.TemplatePrefix(io.Custom('DAELAB_ASSETS').Input('group'), prefix='group', min=0, max=100), optional=True),
+                    io.Autogrow.Input('videos', template=io.Autogrow.TemplatePrefix(io.Custom('COMFYTV_VIDEO').Input('video'), prefix='video', min=0, max=100), optional=True),
                 ],
                 outputs=[io.Video.Output('video'), io.Custom('COMFYTV_VIDEO').Output('comfytv_video'),
                          io.String.Output('local_path'), io.String.Output('task_report'), io.Image.Output('image')])
@@ -117,7 +121,7 @@ def make_node(service):
         @classmethod
         def execute(cls, project_uuid, request_id, model, mode, prompt, duration, resolution, ratio,
                     sound=False, reference_files='[]', first_frame=None, last_frame=None,
-                    reference_images=None, reference_video=None, text_input=None, table_json=None, task_data=''):
+                    reference_images=None, reference_video=None, text_input=None, table_json=None, task_data='', texts=None, images=None, groups=None, videos=None):
             if not task_data:
                 raise InvalidInput('Legacy LibTV execution is retired. Run the shared generation panel before reading its completed result.')
             kind, file, report, url = read_current_result(service, task_data)

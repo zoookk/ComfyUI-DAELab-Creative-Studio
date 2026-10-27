@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generationDurationOptions,generationParameterSpecs,generationParameterModes,promptSettingsItems,generationParametersSummary} from '../../frontend/src/features/prompt/table_prompt_settings.mjs';
+import {generationDurationOptions,generationParameterSpecs,generationParameterModes,generationModes,generationModeChoice,promptSettingsItems,generationParametersSummary} from '../../frontend/src/features/prompt/table_prompt_settings.mjs';
 import {generationModelIconURL} from '../../frontend/src/features/generation/generation_model_icons.mjs';
 import {LOCAL_VIDEO_MODEL} from '../../frontend/src/features/generation/table_generation_model.mjs';
 import {LOCAL_VIDEO_SIZE_PRESETS,localVideoSizePresets,normalizeLocalGenerationConfig} from '../../frontend/src/features/prompt/table_prompt_settings.mjs';
@@ -58,4 +58,17 @@ test('duration segments follow model bounds and preserve saved fractional values
  assert.deepEqual(generationDurationOptions({type:'integer',min:4,max:6,step:1},4.5),[4,4.5,5,6]);
  assert.deepEqual(generationDurationOptions({enum:[{value:5},{value:10}]},10),[5,10]);
  assert.deepEqual(generationDurationOptions({type:'number',min:.2,max:2},.2),[.2,.5,1,1.5,2]);
+});
+
+test('image and mixed references share one omnireference choice without rewriting saved configuration',()=>{
+ const schema={properties:{modeType:{items:{text2video:[],frames2video:[],image2video:[],mixed2video:[]}}}};
+ for(const mode of ['image2video','mixed2video']){
+  const config={kind:'video',model:'Seedance 2.5',mode,settings:{duration:4}},before=structuredClone(config);
+  assert.deepEqual(generationParameterModes(config,schema),['text2video','frames2video','mixed2video']);
+  assert.equal(generationModeChoice(mode),'mixed2video');
+  assert.match(generationParametersSummary(config),/^全能参考/);
+  assert.equal(promptSettingsItems(config).find(item=>item.key==='mode').text,'全能参考');
+  assert.deepEqual(config,before);
+ }
+ assert.deepEqual(generationModes({},'video'),['text2video','frames2video','mixed2video']);
 });

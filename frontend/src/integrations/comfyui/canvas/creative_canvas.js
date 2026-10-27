@@ -31,6 +31,16 @@ async function switchMode(creative){
     if(creative)view.show();else view.hide();updateLabel();return true;
 }
 function restoreLabels(){for(const [button,saved] of labels){saved.badge.remove();for(const [child,display] of saved.children)child.style.display=display;if(saved.label===null)button.removeAttribute('aria-label');else button.setAttribute('aria-label',saved.label);}labels.clear();}
+function installWorkflowView(){
+    const load=app.loadGraphData;
+    app.loadGraphData=async function(...args){
+        const revision=++modeRevision;
+        view?.hide(false);restoreLabels();
+        const result=await load.apply(this,args);
+        if(revision===modeRevision&&view&&app.isGraphReady!==false&&app.graph?.extra?.[STATE_KEY]?.active)await switchMode(true);
+        return result;
+    };
+}
 function updateLabel(){
     if(!view?.active){restoreLabels();return;}
     const button=document.querySelector('[data-testid="view-mode-toggle"] button[aria-haspopup="menu"]');
@@ -65,7 +75,9 @@ app.registerExtension({
     commands:[{id:'DAELAB.CreativeCanvas.Toggle',label:'切换创作画布',function:()=>switchMode(!view?.active)}],
     setup(){
         if(document.getElementById('daelab-creative-css'))return;
-        installLayoutHistory(app);
+        // The host has no afterLoadGraph hook. Restore after native workflow activation,
+        // inside the layout-history wrapper so layout-only undo keeps its live panels.
+        installWorkflowView();installLayoutHistory(app);
         const css=document.createElement('link');css.id='daelab-creative-css';css.rel='stylesheet';css.href=new URL('../../../canvas/creative_canvas.css?v=20261023-narrow-edge',import.meta.url).href;document.head.append(css);
         const hostCSS=document.createElement('link');hostCSS.rel='stylesheet';hostCSS.href=new URL('./canvas_host.css',import.meta.url).href;document.head.append(hostCSS);
         const history=canvasHistory(app,{diagnose});
@@ -80,13 +92,5 @@ app.registerExtension({
         app.daelabCreativeCanvas=view;
         app.daelabMaterialGroups=installMaterialGroups(host,view);
         syncMenu();
-    },
-    beforeLoadGraph(){++modeRevision;view?.hide(false);restoreLabels();},
-    // In the native loader afterConfigureGraph precedes workflow activation.
-    // afterLoadGraph runs after afterLoadNewGraph has installed the new tracker
-    // and resolved its initial mode. Never toggle the previous workflow here.
-    afterLoadGraph(){
-        if(view&&app.isGraphReady!==false&&app.graph?.extra?.[STATE_KEY]?.active)return switchMode(true);
-        updateLabel();
     },
 });

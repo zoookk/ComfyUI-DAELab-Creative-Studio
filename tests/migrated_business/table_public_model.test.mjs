@@ -21,8 +21,8 @@ test('model extensions are per instance and no provider is needed for base editi
  extended.normalizeTable({});assert.equal(calls,1);base.normalizeTable({});assert.equal(calls,1);
 });
 test('production composition preserves default columns, rows and local material validation',()=>{
- const table=createMaterialTable();assert.equal(table.records.length,3);assert.equal(table.fields.length,3);
- assert.deepEqual(table.fields.map(f=>f.presentation||f.type),['content','prompt','generation']);
+ const table=createMaterialTable();assert.equal(table.records.length,3);assert.equal(table.fields.length,2);
+ assert.deepEqual(table.fields.map(f=>f.presentation||f.type),['content','prompt']);
  assert.throws(()=>tableModel.convertValue(table.fields[0],[{url:'https://example.invalid/image.png'}]),/本地素材/);
  const assets=[{id:'a',url:'/view?filename=a.png',name:'A'},{id:'b',url:'/view?filename=b.png',name:'B'}];
  tableModel.setValue(table,table.records[0].id,table.fields[0].id,assets);

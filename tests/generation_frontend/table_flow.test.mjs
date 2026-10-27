@@ -5,11 +5,12 @@ import {createBusinessDocument} from '../../web/application/business_document.js
 import {tableInputStamp} from '../../web/integrations/comfyui/business/business_document_host.js';
 import {createMaterialTable} from '../../web/features/table/table_material_columns.mjs';
 import {attachGenerationTasks} from '../../web/features/generation/table_generation_tasks.mjs';
+import {addGenerationColumn} from '../../web/features/generation/table_generation_model.mjs';
 
 function fixture(t){
  let markSubmitted;
  const submissionReady=new Promise(resolve=>{markSubmitted=resolve;});
- let table=createMaterialTable(),steps=0,epoch=0,release,report,submitFault=null,statusFault=null;table.records=table.records.slice(0,1);const field=table.fields.find(f=>f.presentation==='generation'),row=table.records[0];row.values[field.generation.promptFieldId]='合成独立测试输入';
+ let table=createMaterialTable(),steps=0,epoch=0,release,report,submitFault=null,statusFault=null;table.records=table.records.slice(0,1);const field=addGenerationColumn(table,{name:'生成列（仅测试用）'}),row=table.records[0];row.values[field.generation.promptFieldId]='合成独立测试输入';
  const original=structuredClone(table),calls=[],history=[];
  const native=createBusinessDocument({read:()=>table,write:value=>{table=value;},current:()=>true,stamp:tableInputStamp,identity:()=>({workflowSession:'w',epoch,documentId:'node'}),history:{begin(){steps++;history.push(structuredClone(table));},end(){},amend(fn){fn();},undo(){table=history.pop();},redo(){}}});
  const editor={root:{querySelectorAll:()=>[]},nativeDocument:native,taskIdentity:{documentId:'document',tableId:'table',nodeId:'node'},change:(fn,options)=>native.edit('编辑',fn,options),beginAsync:(target,id)=>native.beginRequest(id,target),canAsync:native.canApply,releaseAsync:native.releaseRequest,applyAsync:(tickets,fn,options)=>{if(!native.controller.applyResults(tickets,'应用结果',fn,options))throw Error('stale');}};

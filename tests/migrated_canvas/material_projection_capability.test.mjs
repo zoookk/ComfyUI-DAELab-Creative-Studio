@@ -26,7 +26,7 @@ function world(){
   return e;
  }
  const button=()=>{const p=element('port-'+ports.length);ports.push(p);return p;};
- const compile=new Function('adapterFor','button','state','portStarts','select','getComputedStyle',`let magneticPort=null;function setMagnet(value){magneticPort=value;} ${projection[0].getText(canvas)}return {run:projectMaterialPorts,setMagnet,get magnet(){return magneticPort;}};`);
+ const compile=new Function('adapterFor','button','state','portStarts','select','getComputedStyle',`const visible=true,wires={getScreenCTM:()=>({a:state.viewport.zoom})};let magneticPort=null;function setMagnet(value){magneticPort=value;} ${projection[0].getText(canvas)}return {run:projectMaterialPorts,setMagnet,get magnet(){return magneticPort;}};`);
  const api=compile(node=>node.adapter,button,{viewport:{zoom:.5}},portStarts,node=>{selected=node;},()=>({overflowX:'visible'}));
  function card(id,a){return {node:{id,title:'Table '+id,adapter:a,inputs:[{name:'source_table',link:null}],outputs:[{name:'table_json',slot_index:0,links:[]}]},body:element('body-'+id),element:element('card-'+id,{left:0,top:0,width:640,height:500})};}
  function snapshot(c){return [...(c.materialPorts?.values()||[])].map(({original,entry,port})=>({id:original.id,key:entry.key,side:entry.side,unknown:entry.unknown,slot:entry.slot,accepts:entry.accepts,callback:entry.previewElements,hidden:port.hidden,disabled:port.disabled,left:port.style.left,top:port.style.top,label:port.getAttribute('aria-label'),title:port.title}));}
@@ -82,7 +82,7 @@ test('owned projected list shares exact column descriptors and same revision/gri
  const full=a.materialTargets(left.node),projected=a.projectedMaterialTargets(left.node),other=a.projectedMaterialTargets(right.node);
  assert.equal(projected.length,3);assert(projected.every((v,i)=>v===full[i]));assert.equal(a.projectedMaterialTargets(left.node),projected);assert.equal(a.materialTargets(left.node),full);
  assert.deepEqual(projected[0].previewElements(1),[left.columns[0],left.cells[0],left.cells[3]]);
- assert.deepEqual(projected[0].accepts,['image','video','text']);
+ assert.deepEqual(projected[0].accepts,['image','video']);
  left.columns.reverse();left.grid.dataset.cellsRevision='1';const reordered=a.projectedMaterialTargets(left.node);assert.notEqual(reordered,projected);assert.deepEqual(reordered.map(x=>x.key),['field-2','field-1','field-0']);
  assert.equal(a.projectedMaterialTargets(right.node),other);
  left.node.__dataTable.fields.find(f=>f.id==='field-1').hidden=true;left.grid.dataset.cellsRevision='2';assert.deepEqual(a.projectedMaterialTargets(left.node).map(x=>x.key),['field-2','field-0']);

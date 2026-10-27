@@ -66,6 +66,15 @@ test('two instances retain the exact single Text through unchanged Enter/Tab and
  b.start();b.tab();assert.equal(b.box.firstChild,bText);assert.deepEqual(env.mutations(b.box),[]);assert.equal(b.row.values.f,'beta');assert.equal(b.changes.length,0);assert.equal(a.changes.length,1);
 });
 
+for(const type of ['text','longtext'])test(`${type} uses inline multiline editing while preserving string values and cancel`,t=>{
+ const env=dom(t),h=cell(env,type,'原文',{type});
+ assert.equal(h.cell.childNodes.length,1,'plain text has no upload or separate input controls');
+ h.start();h.box.emit('keydown',{key:'Enter'});h.box.emit('paste',{clipboardData:{getData:()=>'<b>第二行</b>'}});h.blur();
+ assert.equal(h.row.values.f,'原文\n<b>第二行</b>');assert.equal(typeof h.row.values.f,'string');
+ h.start();h.box.firstChild.textContent='未保存';h.box.emit('input');h.box.emit('keydown',{key:'Escape'});
+ assert.equal(h.row.values.f,'原文\n<b>第二行</b>');assert.equal(h.box.contentEditable,'false');assert.deepEqual(h.errors,[]);h.dispose();
+});
+
 test('different model text, external class changes and non-string values use normalization',t=>{
  const env=dom(t),h=cell(env,'A','same');const first=h.box.firstChild;
  h.row.values.f='external';h.start();assert.notEqual(h.box.firstChild,first);assert.equal(h.box.textContent,'external');h.tab();

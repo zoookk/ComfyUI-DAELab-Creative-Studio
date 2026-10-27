@@ -191,6 +191,12 @@ export function generationInput(table,fieldId,recordId){
   if(!frame.asset)throw new Error((frame.role==='first'?'首帧':'尾帧')+'：'+(frame.error||'请选择本行图片'));
   const a=frame.asset;if(a.fieldId===fieldId)throw new Error('生成列不能引用自身结果，请引用其他已完成的生成列');assets.push({id:a.id,fieldId:a.fieldId,kind:a.kind||'image',url:a.url});
  }
+ if(!generationFrameRoles(config).length)for(const ref of row.meta?.generationReferences?.[owner.id]||[]){
+  if(ref.fieldId===fieldId)throw new Error('生成列不能引用自身结果，请引用其他已完成的生成列');
+  const {asset}=columnValue(table,row,ref.fieldId,undefined,ref.assetId);
+  if(!asset)throw new Error('参考素材已不存在');
+  if(!assets.some(a=>a.id===asset.id&&a.fieldId===asset.fieldId))assets.push({id:asset.id,fieldId:asset.fieldId,kind:asset.kind||'image',url:asset.url});
+ }
  const segments=document.segments.map(s=>{
   if(s.type==='text')return {type:'text',text:s.text};
   const ref=document.references.find(r=>r.refId===s.refId&&r.included!==false);

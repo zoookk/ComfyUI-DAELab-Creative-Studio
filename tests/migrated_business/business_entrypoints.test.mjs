@@ -29,6 +29,15 @@ test('production entry closure loads before graph initialization and exposes onl
   if(Object.keys(Object.getOwnPropertyDescriptors(GenerationNode.prototype)).some(key=>!Object.hasOwn(before,key)))generationOwners.push(extension.name);
  }
  assert.deepEqual(generationOwners,['DAELab.Studio.GenerationPanel'],'one native-document generation owner, independent of entry load order');
+ class TableNode{constructor(){this.inputs=[{name:'source_table'},{name:'table_data'}];}}
+ for(const extension of extensions)await extension.beforeRegisterNodeDef?.(TableNode,{name:'DAELAB.Table'});
+ const table=new TableNode();
+ for(const type of ['DAELAB.TextInput','DAELAB.LLMStylePreviewB','DAELAB.MediaUpload'])assert.equal(table.onConnectInput(0,'STRING',{}, {type},0),false,type);
+ for(const type of ['DAELAB.Table','DAELAB.ScriptParser']){
+  assert.equal(table.onConnectInput(0,'STRING',{}, {type},0),true,type);
+  assert.equal(table.onConnectInput(0,'STRING',{}, {type},1),false,type);
+ }
+ assert.equal(table.onConnectInput(1,'STRING',{}, {type:'DAELAB.TextInput'},0),true,'other native inputs keep their contract');
  for(const extension of extensions)extension.registerCustomNodes?.();
  assert.deepEqual([...types.keys()],['DAELAB.LLMStylePreviewB']);
  const formal=new Set(['DAELAB.Table','DAELAB.StoryboardImport','DAELAB.ScriptParser','DAELAB.LLMStylePreviewB','DAELAB.LibTV.VideoGenerate']);
